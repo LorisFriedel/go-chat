@@ -1,23 +1,28 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"github.com/LorisFriedel/go-chat/console"
+	"github.com/LorisFriedel/go-chat/console/handler"
+	"github.com/LorisFriedel/go-chat/console/parser"
+	"github.com/LorisFriedel/go-chat/console/reader"
 	"github.com/LorisFriedel/go-chat/core"
 	rl "github.com/chzyer/readline"
 	"io"
+	"os"
 	"strings"
+	"log"
 )
 
 var prefix = "!"
 
 func main() {
-	fmt.Println("Welcome stranger ! What's your name ?") // TODO
-	// TODO get user name (while loop until not only whitespace)
+	userName := getUserName()
+	fmt.Printf("Hi %s !\n", userName)
 
-	client := core.NewClient("Loris")
-	parser := console.NewCmdParser(prefix)
-	handler := console.NewCmdHandler(parser)
+	client := core.NewClient(userName)
+	cmdParser := parser.New(prefix)
+	cmdHandler := handler.New(cmdParser)
 
 	completer := rl.NewPrefixCompleter(
 		makeItem(prefix, "go",
@@ -39,9 +44,9 @@ func main() {
 		makeItem(prefix, "ping"), // TODO ping current channel, nothing if not in channel
 	)
 
-	rd, err := console.ReaderBuilder.
+	rd, err := reader.Builder.
 		Prefix("> ").
-		PrefixColor(console.LIGHT_CYAN).
+		PrefixColor(reader.LIGHT_CYAN).
 		HistoryFile("/tmp/go-chat").
 		Completer(completer).
 		InterruptCommand("^C").
@@ -70,13 +75,25 @@ func main() {
 		}
 
 		// Handle input
-		err = handler.Handle(client, line)
+		err = cmdHandler.Handle(client, line)
 		if err != nil {
-			fmt.Errorf("%v", err)
+			fmt.Printf("Error: %v\n", err)
 		}
 	}
 }
 
 func makeItem(prefix string, name string, pc ...rl.PrefixCompleterInterface) *rl.PrefixCompleter {
 	return rl.PcItem(prefix+name, pc...)
+}
+
+func getUserName() string {
+	fmt.Println("Welcome stranger ! What's your name ?")
+	fmt.Print("> ")
+	name, err := bufio.NewReader(os.Stdin).ReadString('\n')
+
+	if err != nil {
+		log.Fatal("Oh noooo! Invalid user name, bye bye :(")
+	}
+
+	return strings.Trim(name, "\n")
 }

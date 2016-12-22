@@ -4,29 +4,40 @@ import "fmt"
 
 // TODO interface ?
 type Client struct {
-	Name string
-	Channel *Channel // pointer ?
-	// Known channel
-	// Name
-	// Own channel
-	// Current channel
+	name          string
+	channel       *Channel
+	knownChannels []*Channel
+	ownChannels   []*Channel
+
 	// Each channel assign a unique ID for each client
 }
 
 func NewClient(name string) *Client {
-	return &Client{name, nil} /// TODO channel etc..
+	return &Client{name, nil, []*Channel{}, []*Channel{}}
 }
 
-func (c *Client) SendMessage(msg string, channel *Channel) error {
-	fmt.Println(channel, " : ", msg)
-	// TODO
+func (c *Client) Name() string {
+	return c.name
+}
+
+func (c *Client) CurrentChannel() *Channel {
+	return c.channel
+}
+
+func (c *Client) SendMessage(msg string) error {
+	fmt.Println(c.channel, " : ", msg)
+	// TODO channel.sendMessage
 	return nil
 }
 
-// TODO send message [to a channel], disconnect [from a channel], change current channel, get current satus
-// TODO get server status (if owner/or not, info is different), change server password (if owner)
+// TODO send message [to a channel]
+
+// TODO disconnect [from a channel]
+// TODO change current channel, get current satus
+// TODO get server status (if owner/or not, info is different)
+// TODO change server password (if owner)
 // TODO
 
 func (c *Client) String() string {
-	return c.Name
+	return c.name
 }

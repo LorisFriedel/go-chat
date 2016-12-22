@@ -1,8 +1,8 @@
-package console
+package command
 
 import (
-	"errors"
 	"fmt"
+	"github.com/LorisFriedel/go-chat/console/provider"
 	"github.com/LorisFriedel/go-chat/core"
 	"log"
 	"sync"
@@ -14,10 +14,9 @@ type ICommand interface {
 
 type Cmd struct {
 	client *core.Client
-
 }
 
-type commandFactory func(client *core.Client, provider IProvider) (ICommand, error)
+type commandFactory func(client *core.Client, provider provider.IProvider) (ICommand, error)
 
 // No need to sync the map, no concurrency there
 var commandFactories map[string]commandFactory
@@ -38,12 +37,12 @@ func FactoryFor(name string) (commandFactory, bool) {
 
 func register(name string, factory commandFactory) {
 	if factory == nil {
-		log.Panicf("Command factory %s does not exist.", name)
+		log.Panicf("command factory %s does not exist.", name)
 	}
 	m := CommandFactories()
 	_, registered := m[name]
 	if registered {
-		fmt.Errorf("Command factory %s already registered. Replacing.", name)
+		log.Printf("command factory %s already registered. Replacing.", name)
 	}
 	m[name] = factory
 }
@@ -53,24 +52,13 @@ func init() {
 	//register("cmd1", NewMemoryDataStore)
 }
 
-func NewCommand(client *core.Client, name string, provider IProvider) (ICommand, error) {
+func New(client *core.Client, name string, provider provider.IProvider) (ICommand, error) {
 	cmdFactory, set := FactoryFor(name)
 	if !set {
 		// Factory has not been registered
-		return nil, errors.New("Invalid Command name: " + name)
+		return nil, fmt.Errorf("command.New: invalid command name: %s", name)
 	}
 
 	// Run the factory with args
 	return cmdFactory(client, provider)
 }
-
-/*
-Quand on veut handle, on aimerai que la commande soit créer toutes seules (pattern factory ?)
-On lui donne un provider, il l'utilise et nous renvoi une erreur
-si lors de son extraction de donnée du provider il y a une erreur
-example:
-
-provider = newprovider("create Channel1 Password1") // on pourra faire trois provider.GetString()
-cmd := NewCommand("chan", provider)
-
-*/

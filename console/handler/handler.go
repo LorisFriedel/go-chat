@@ -1,8 +1,9 @@
-package console
+package handler
 
 import (
+	"github.com/LorisFriedel/go-chat/console/command"
+	"github.com/LorisFriedel/go-chat/console/parser"
 	"github.com/LorisFriedel/go-chat/core"
-	"fmt"
 )
 
 type IHandler interface {
@@ -10,10 +11,10 @@ type IHandler interface {
 }
 
 type CmdHandler struct {
-	parser IParser
+	parser parser.IParser
 }
 
-func NewCmdHandler(parser IParser) *CmdHandler {
+func New(parser parser.IParser) *CmdHandler {
 	return &CmdHandler{parser}
 }
 
@@ -27,14 +28,12 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 	// Find command name
 	cmdName := provider.CommandName()
 
-	fmt.Println("Commande name : ", cmdName) // TODO remove
-
 	// Create executable command
-	command, err := NewCommand(client, cmdName, provider)
+	cmd, err := command.New(client, cmdName, provider)
 	if err != nil {
-		// TODO handle error
+		return err
 	}
 
 	// Execute command
-	return command.Execute()
+	return cmd.Execute()
 }
