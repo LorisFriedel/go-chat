@@ -2,27 +2,32 @@ package main
 
 import (
 	"fmt"
-	"github.com/LorisFriedel/go-chat/reader"
+	"github.com/LorisFriedel/go-chat/console"
+	"github.com/LorisFriedel/go-chat/core"
 	rl "github.com/chzyer/readline"
 	"io"
 	"strings"
 )
 
-func main() {
-	// TODO instantiate a client and listen for command
+var prefix = "!"
 
+func main() {
 	fmt.Println("Welcome stranger ! What's your name ?") // TODO
-	// get user name (while loop until not only whitespace)
+	// TODO get user name (while loop until not only whitespace)
+
+	client := core.NewClient("Loris")
+	parser := console.NewCmdParser(prefix)
+	handler := console.NewCmdHandler(parser)
 
 	completer := rl.NewPrefixCompleter(
-		rl.PcItem("!go",
+		makeItem(prefix, "go",
 			rl.PcItem("chan1"),
 			rl.PcItem("chan2"), // TODO dynamique channel, or let the user type it's addresse, name etc..
 		),
-		rl.PcItem("!join"), // TODO same as above ? useless ?
-		rl.PcItem("!bye"),  // TODO plus (optionnal) the name of the chan to exit (autocomplete here too)
-		rl.PcItem("!help"), // TODO + command name for help of it OR empty for general help
-		rl.PcItem("!chan",
+		makeItem(prefix, "join"), // TODO same as above ? useless ?
+		makeItem(prefix, "bye"),  // TODO plus (optionnal) the name of the chan to exit (autocomplete here too)
+		makeItem(prefix, "help"), // TODO + command name for help of it OR empty for general help
+		makeItem(prefix, "chan",
 			rl.PcItem("list"),   // TODO list all registered channel that I can connect on (need to store password)
 			rl.PcItem("status"), // TODO print current status of current channel, or the given one
 			rl.PcItem("create"), // TODO create new channel
@@ -30,13 +35,13 @@ func main() {
 			rl.PcItem("join"),   // TODO same as go ? useless ?
 			rl.PcItem("passwd"), // TODO + new password (error if you are not the owner)
 		),
-		rl.PcItem("!me"),   // TODO display info about me, what channel i'm on, etc..
-		rl.PcItem("!ping"), // TODO ping current channel, nothing if not in channel
+		makeItem(prefix, "me"),   // TODO display info about me, what channel i'm on, etc..
+		makeItem(prefix, "ping"), // TODO ping current channel, nothing if not in channel
 	)
 
-	rd, err := reader.Builder.
+	rd, err := console.ReaderBuilder.
 		Prefix("> ").
-		PrefixColor(reader.LIGHT_CYAN).
+		PrefixColor(console.LIGHT_CYAN).
 		HistoryFile("/tmp/go-chat").
 		Completer(completer).
 		InterruptCommand("^C").
@@ -65,6 +70,13 @@ func main() {
 		}
 
 		// Handle input
-		fmt.Println("PRINT LINE: ", line)
+		err = handler.Handle(client, line)
+		if err != nil {
+			fmt.Errorf("%v", err)
+		}
 	}
+}
+
+func makeItem(prefix string, name string, pc ...rl.PrefixCompleterInterface) *rl.PrefixCompleter {
+	return rl.PcItem(prefix+name, pc...)
 }

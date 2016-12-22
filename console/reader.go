@@ -1,4 +1,4 @@
-package reader
+package console
 
 import (
 	"github.com/chzyer/readline"
@@ -8,7 +8,7 @@ import (
 
 type rBuilder builder.Builder
 
-var Builder = builder.Register(rBuilder{}, readline.Instance{}).(rBuilder)
+var ReaderBuilder = builder.Register(rBuilder{}, readline.Instance{}).(rBuilder)
 
 func (b rBuilder) Prefix(prefix string) rBuilder {
 	return builder.Set(b, "prefix", prefix).(rBuilder)
