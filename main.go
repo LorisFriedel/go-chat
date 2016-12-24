@@ -2,51 +2,48 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
-	"github.com/LorisFriedel/go-chat/console/handler"
-	"github.com/LorisFriedel/go-chat/console/parser"
-	"github.com/LorisFriedel/go-chat/console/reader"
+	"github.com/LorisFriedel/go-chat/console"
 	"github.com/LorisFriedel/go-chat/core"
 	rl "github.com/chzyer/readline"
 	"io"
+	"log"
 	"os"
 	"strings"
-	"log"
 )
 
 var prefix = "!"
 
 func main() {
+	flag.Parse() // glog need that
+
 	userName := getUserName()
 	fmt.Printf("Hi %s !\n", userName)
 
 	client := core.NewClient(userName)
-	cmdParser := parser.New(prefix)
-	cmdHandler := handler.New(cmdParser)
+	parser := console.NewParser(prefix)
+	handler := console.NewHandler(parser)
 
 	completer := rl.NewPrefixCompleter(
 		makeItem(prefix, "go",
 			rl.PcItem("chan1"),
-			rl.PcItem("chan2"), // TODO dynamique channel, or let the user type it's addresse, name etc..
+			rl.PcItem("chan2"), // TODO DYNAMIC channel, or let the user type it's addresse, name etc..
 		),
-		makeItem(prefix, "join"), // TODO same as above ? useless ?
-		makeItem(prefix, "bye"),  // TODO plus (optionnal) the name of the chan to exit (autocomplete here too)
-		makeItem(prefix, "help"), // TODO + command name for help of it OR empty for general help
-		makeItem(prefix, "chan",
-			rl.PcItem("list"),   // TODO list all registered channel that I can connect on (need to store password)
-			rl.PcItem("status"), // TODO print current status of current channel, or the given one
-			rl.PcItem("create"), // TODO create new channel
-			rl.PcItem("leave"),  // TODO same as !bye ? useless ?
-			rl.PcItem("join"),   // TODO same as go ? useless ?
-			rl.PcItem("passwd"), // TODO + new password (error if you are not the owner)
-		),
-		makeItem(prefix, "me"),   // TODO display info about me, what channel i'm on, etc..
-		makeItem(prefix, "ping"), // TODO ping current channel, nothing if not in channel
+		makeItem(prefix, "bye"),    // TODO plus (optionnal) the name of the chan to exit (DYNAMIC)
+		makeItem(prefix, "help"),   // TODO + command name for help of it OR empty for general help (DYNAMIC)
+		makeItem(prefix, "list"),   // TODO list all registered channel that I can connect on (need to store password)
+		makeItem(prefix, "status"), // TODO print current status of current channel, or the given one
+		makeItem(prefix, "new"),    // TODO create new channel
+		makeItem(prefix, "forget"), // TODO delete known channel (DYNAMIC)
+		makeItem(prefix, "delete"), // TODO delete own channel (DYNAMIC)
+		makeItem(prefix, "passwd"), // TODO + new password (error if you are not the owner)
+		makeItem(prefix, "me"),     // TODO display info about me, what channel i'm on, etc..
 	)
 
-	rd, err := reader.Builder.
+	rd, err := console.ReaderBuilder.
 		Prefix("> ").
-		PrefixColor(reader.LIGHT_CYAN).
+		PrefixColor(console.LIGHT_CYAN).
 		HistoryFile("/tmp/go-chat").
 		Completer(completer).
 		InterruptCommand("^C").
@@ -57,6 +54,18 @@ func main() {
 		panic(err)
 	}
 	defer rd.Close()
+
+	client.AddListener(func(msg core.Message) {
+		color := console.LIGHT_BLUE
+		if msg.Sender == client.Identity() {
+			color = console.LIGHT_GREEN
+		}
+
+		name := console.MakePromptPrefix(msg.Sender.Name, color)
+		time := console.MakePromptPrefix(msg.Timestamp.Format("15:04:05"), console.LIGHT_YELLOW)
+		fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
+		rd.Refresh()
+	})
 
 	for {
 		// Read input
@@ -75,7 +84,11 @@ func main() {
 		}
 
 		// Handle input
-		err = cmdHandler.Handle(client, line)
+		if len(line) == 0 {
+			continue
+		}
+
+		err = handler.Handle(client, line)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}

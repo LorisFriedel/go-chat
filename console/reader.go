@@ -1,4 +1,4 @@
-package reader
+package console
 
 import (
 	"github.com/chzyer/readline"
@@ -8,7 +8,7 @@ import (
 
 type rBuilder builder.Builder
 
-var Builder = builder.Register(rBuilder{}, readline.Instance{}).(rBuilder)
+var ReaderBuilder = builder.Register(rBuilder{}, readline.Instance{}).(rBuilder)
 
 func (b rBuilder) Prefix(prefix string) rBuilder {
 	return builder.Set(b, "prefix", prefix).(rBuilder)
@@ -73,7 +73,7 @@ func newReader(rb rBuilder) (*readline.Instance, error) {
 	}
 
 	return readline.NewEx(&readline.Config{
-		Prompt:            makePromptPrefix(prefix, prefixColor),
+		Prompt:            MakePromptPrefix(prefix, prefixColor),
 		HistoryFile:       historyFile,
 		AutoComplete:      completer,
 		InterruptPrompt:   interruptCommand,
@@ -82,7 +82,7 @@ func newReader(rb rBuilder) (*readline.Instance, error) {
 	})
 }
 
-func makePromptPrefix(prefix string, prefixColor int) string {
+func MakePromptPrefix(prefix string, prefixColor int) string {
 	return "\033[" + strconv.Itoa(prefixColor) + "m" + prefix + "\033[0m"
 }
 

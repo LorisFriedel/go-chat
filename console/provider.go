@@ -1,4 +1,4 @@
-package provider
+package console
 
 import (
 	"errors"
@@ -24,7 +24,7 @@ type ArgProvider struct {
 
 // TODO reduce slice each NextXX ?
 
-func New(cmdName string, args []string) *ArgProvider {
+func NewProvider(cmdName string, args []string) *ArgProvider {
 	return &ArgProvider{cmdName, args, -1, len(args)}
 }
 
