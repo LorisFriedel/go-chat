@@ -1,6 +1,7 @@
 package console
 
 import (
+	"fmt"
 	"github.com/LorisFriedel/go-chat/core"
 	"github.com/golang/glog"
 )
@@ -35,9 +36,14 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 		return err
 	}
 
-	// Execute command
-	err = cmd.Execute()
-	if err != nil {
+	// Command execution
+	if cmd == nil {
+		return fmt.Errorf("command %s can't be nil", cmdName)
+	}
+
+	err = cmd()
+
+	if err != nil && err != core.ClientSuicide {
 		glog.Errorf("Handler.Handle: error while executing command: %s\n", cmdName)
 		return err
 	}

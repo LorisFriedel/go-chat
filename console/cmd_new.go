@@ -5,19 +5,11 @@ import (
 	"github.com/golang/glog"
 )
 
-type CmdNew struct {
-	Cmd
-	name    string
-	address string
-	port    int
-	passwd  string
-}
-
 func init() {
 	registerCmd("new", newCmdNew)
 }
 
-func newCmdNew(client *core.Client, provider IProvider) (ICommand, error) {
+func newCmdNew(client *core.Client, provider IProvider) (Command, error) {
 	// TODO Identify proper pattern & factor.
 
 	name, err := provider.GetString()
@@ -44,16 +36,7 @@ func newCmdNew(client *core.Client, provider IProvider) (ICommand, error) {
 		return nil, err
 	}
 
-	return &CmdNew{
-		Cmd:     Cmd{client},
-		name:    name,
-		address: address,
-		port:    port,
-		passwd:  passwd,
+	return func() error {
+		return client.CreateChan(name, address, port, passwd)
 	}, nil
-}
-
-func (c *CmdNew) Execute() error {
-	glog.Infoln("CmdNew: executing command")
-	return c.client.CreateChan(c.name, c.address, c.port, c.passwd)
 }

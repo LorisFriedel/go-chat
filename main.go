@@ -26,15 +26,13 @@ func main() {
 	handler := console.NewHandler(parser)
 
 	completer := rl.NewPrefixCompleter(
-		makeItem(prefix, "go",
-			rl.PcItem("chan1"),
-			rl.PcItem("chan2"), // TODO DYNAMIC channel, or let the user type it's addresse, name etc..
-		),
-		makeItem(prefix, "bye"),    // TODO plus (optionnal) the name of the chan to exit (DYNAMIC)
+		makeItem(prefix, "go", rl.PcItemDynamic(client.ListKnownChan())),
+		makeItem(prefix, "bye"),    // Done
+		makeItem(prefix, "die"),    // Done
 		makeItem(prefix, "help"),   // TODO + command name for help of it OR empty for general help (DYNAMIC)
 		makeItem(prefix, "list"),   // TODO list all registered channel that I can connect on (need to store password)
 		makeItem(prefix, "status"), // TODO print current status of current channel, or the given one
-		makeItem(prefix, "new"),    // TODO create new channel
+		makeItem(prefix, "new"),    // Done
 		makeItem(prefix, "forget"), // TODO delete known channel (DYNAMIC)
 		makeItem(prefix, "delete"), // TODO delete own channel (DYNAMIC)
 		makeItem(prefix, "passwd"), // TODO + new password (error if you are not the owner)
@@ -64,7 +62,7 @@ func main() {
 		name := console.MakePromptPrefix(msg.Sender.Name, color)
 		time := console.MakePromptPrefix(msg.Timestamp.Format("15:04:05"), console.LIGHT_YELLOW)
 		fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
-		rd.Refresh()
+		rd.Refresh() // TODO fix display issue
 	})
 
 	for {
@@ -90,6 +88,10 @@ func main() {
 
 		err = handler.Handle(client, line)
 		if err != nil {
+			if err == core.ClientSuicide {
+				fmt.Println("Bye bye !")
+				break
+			}
 			fmt.Printf("Error: %v\n", err)
 		}
 	}

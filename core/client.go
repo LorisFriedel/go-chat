@@ -1,10 +1,13 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"github.com/golang/glog"
 	"net"
 )
+
+var ClientSuicide = errors.New("client doesn't want to live anymore")
 
 type MsgListener func(Message)
 
@@ -35,13 +38,9 @@ func (c *Client) AddListener(listener MsgListener) {
 	c.listeners = append(c.listeners, listener)
 }
 
-//func (c *Client) DelListener(listener MsgListener) error {
-//	// TODO
-//	return nil
-//}
+// TODO function DelListener ?
 
 func (c *Client) listen() {
-	// TODO something to stop it
 	go func() {
 		for msg := range c.currPipe.incoming {
 			for _, listener := range c.listeners {
@@ -54,8 +53,6 @@ func (c *Client) listen() {
 func (c *Client) CreateChan(name, address string, port int, passwd string) error {
 	channel := newChannel(address, port, passwd)
 
-	// TODO !!!!!!!!
-	// TODO check if already exist + or already known ???!!
 	if ch, ok := c.ownChans[name]; ok {
 		err := ch.Close()
 		if err != nil {
@@ -72,13 +69,9 @@ func (c *Client) CreateChan(name, address string, port int, passwd string) error
 
 	c.ownChans[name] = channel
 
-	// TODO check if already exist + or already known ???!!
-	kChan := newKnownChan(name, channel.Addr().String(), port, passwd)
-	c.knownChans[name] = kChan
-
-	err = c.Connect(channel.address, channel.port)
+	err = c.Connect(name, channel.address, channel.port, passwd)
 	if err != nil {
-		glog.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", kChan)
+		glog.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", err)
 		return err
 	}
 
@@ -86,10 +79,9 @@ func (c *Client) CreateChan(name, address string, port int, passwd string) error
 	return nil
 }
 
-func (c *Client) Connect(address string, port int) error {
-	// TODO close previous connection
+func (c *Client) Connect(name, address string, port int, passwd string) error {
 	if c.currPipe != nil && c.currPipe.IsOpen() {
-
+		c.currPipe.Close()
 	}
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", address, port))
@@ -98,55 +90,79 @@ func (c *Client) Connect(address string, port int) error {
 		return err
 	}
 
+	// Create pipe to communicate with the channel
 	pipe := newPipe(conn)
 	pipe.Open()
 	c.currPipe = pipe
 	c.listen()
 
-	// TODO : if NOT known, try to connect, if success, add to known and set current, if failure return error
-	// TODO check name collisions
-	// TODO check if not already know ?
-	// TODO try to reach server
-	// TODO Encrypt password
-	// C'est le serveur qui validera la connexion, a l'envoie des informations de login, si elles sont pas bonne le serveur
-	// dira CIAO !!!
+	if _, set := c.knownChans[name]; set {
+		glog.Infof("Client.Connect: replacing channel %s in known channels\n", name)
+	} else {
+		glog.Infof("Client.Connect: adding channel %s to known channels\n", name)
+	}
 
-	// On se connect, puis on écoute pour une authentification optionnel, si le serveur dit OK tout de suite
-	// pas besoin de mot de passe, sinon il y en a besoin
+	kChan := newKnownChan(name, address, port, passwd)
+	c.knownChans[name] = kChan
 
+	// TODO Password
 	return nil
 }
 
 func (c *Client) ConnectKnown(name string) error {
+	ch, set := c.knownChans[name]
+	if !set {
+		glog.Errorf("Client.ConnectKnown: client tried to connect to an unexisting known channel (%v)\n", name)
+		return fmt.Errorf("unknown channel: %s", name)
+	}
 
-	// TODO
+	return c.Connect(ch.name, ch.address, ch.port, ch.passwd)
+}
+
+func (c *Client) ListKnownChan() func(string) []string {
+	return func(input string) []string {
+		names := make([]string, 0)
+		for name := range c.knownChans {
+			names = append(names, name)
+		}
+		return names
+	}
+}
+
+func (c *Client) Bye() error {
+	glog.Infoln("Client.Bye: disconnecting from current channel")
+	return c.currPipe.Close()
+}
+
+func (c *Client) Die() error {
+	glog.Infoln("Client.Die: end of the client instance")
+	c.Bye()
+	return ClientSuicide
+}
+
+func (c *Client) Forget(chanName string) error {
+	delete(c.knownChans, chanName)
 	return nil
 }
 
 func (c *Client) SendMessage(text string) error {
-	glog.Infoln("SendMessage: sending message")
+	glog.Infoln("Client.SendMessage: sending message")
 
 	msg := newMessage(text, c.identity)
-	// TODO check close channel
-	if c.currPipe == nil {
+
+	if c.currPipe == nil || !c.currPipe.IsOpen() {
 		glog.Errorln("Client.SendMessage: client is not connected to any channel")
 		return fmt.Errorf("client is not connected to any channel, can't send message \"%s\"", text)
 	}
 
 	c.currPipe.outgoing <- *msg
-	// TODO ne pas affichr le message, attendre de le recevoir du serveur
-	//fmt.Println(c.currPipe, " : ", msg.text) //TODO !!!!
 	return nil
 }
-
-// TODO send message [to a channel]
-
-// TODO disconnect [from a channel]
-// TODO change current channel, get current satus
-// TODO get server status (if owner/or not, info is different)
-// TODO change server password (if owner)
-// TODO
 
 func (c *Client) String() string {
 	return c.identity.Name
 }
+
+// TODO get current satus
+// TODO get server status (if owner/or not, info is different)
+// TODO change server password (if owner)

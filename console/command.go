@@ -8,15 +8,9 @@ import (
 	"sync"
 )
 
-type ICommand interface {
-	Execute() error
-}
+type Command func() error
 
-type Cmd struct {
-	client *core.Client
-}
-
-type commandFactory func(client *core.Client, provider IProvider) (ICommand, error)
+type commandFactory func(client *core.Client, provider IProvider) (Command, error)
 
 // No need to sync the map, no concurrency there
 var commandFactories map[string]commandFactory
@@ -47,7 +41,7 @@ func registerCmd(name string, factory commandFactory) {
 	m[name] = factory
 }
 
-func NewCommand(client *core.Client, name string, provider IProvider) (ICommand, error) {
+func NewCommand(client *core.Client, name string, provider IProvider) (Command, error) {
 	cmdFactory, set := CmdFactory(name)
 	if !set {
 		// Factory has not been registered

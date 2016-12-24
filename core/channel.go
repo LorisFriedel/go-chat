@@ -120,7 +120,9 @@ func (c *Channel) Close() (err error) {
 	c.wg.Wait()
 
 	for _, client := range c.clients {
-		client.Close()
+		if client.IsOpen() {
+			client.Close()
+		}
 	}
 
 	close(c.joins)
@@ -134,9 +136,20 @@ func (c *Channel) Broadcast(msg Message) {
 	glog.Infof("Channel.Broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
 
 	for _, client := range c.clients {
-		// TODO check closed channel ? no in the other function
-		client.outgoing <- msg
+		if client.IsOpen() {
+			client.outgoing <- msg
+		}
 	}
+}
+
+func (c *Channel) clearDisconnected() {
+	filtered := c.clients[:0]
+	for _, client := range c.clients {
+		if client.IsOpen() {
+			filtered = append(filtered, client)
+		}
+	}
+	c.clients = filtered
 }
 
 func (c *Channel) Join(conn net.Conn) {
@@ -151,8 +164,8 @@ func (c *Channel) Join(conn net.Conn) {
 	}()
 }
 
-func (c *Channel) Bye(conn net.Conn) {
-	/// TODO
+func (c *Channel) Bye(hash string) {
+	// TODO
 }
 
 // TODO function remove/delete/bye

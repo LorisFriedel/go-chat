@@ -22,10 +22,8 @@ type ArgProvider struct {
 	argSize int
 }
 
-// TODO reduce slice each NextXX ?
-
 func NewProvider(cmdName string, args []string) *ArgProvider {
-	return &ArgProvider{cmdName, args, -1, len(args)}
+	return &ArgProvider{cmdName, args, 0, len(args)}
 }
 
 func (p *ArgProvider) CommandName() string {
@@ -33,7 +31,7 @@ func (p *ArgProvider) CommandName() string {
 }
 
 func (p *ArgProvider) GetString() (string, error) {
-	p.index++
+	defer p.incr()
 
 	if p.HasMore() {
 		return p.args[p.index], nil
@@ -42,7 +40,7 @@ func (p *ArgProvider) GetString() (string, error) {
 }
 
 func (p *ArgProvider) GetInt() (int, error) {
-	p.index++
+	defer p.incr()
 
 	if p.HasMore() {
 		if result, err := strconv.Atoi(p.args[p.index]); err == nil {
@@ -50,9 +48,13 @@ func (p *ArgProvider) GetInt() (int, error) {
 		}
 		return 0, fmt.Errorf("ArgProvider.GetInt: %v cannot be converted to int", p.args[p.index])
 	}
-	return 0, errors.New("ArgProvider.GetInt: no more value") // TODO
+	return 0, errors.New("ArgProvider.GetInt: no more value")
 }
 
 func (p *ArgProvider) HasMore() bool {
 	return p.index < p.argSize
+}
+
+func (p *ArgProvider) incr() {
+	p.index++
 }

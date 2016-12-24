@@ -3,9 +3,9 @@ package core
 import (
 	"encoding/json"
 	"github.com/golang/glog"
+	"io"
 	"net"
 	"sync"
-	"io"
 )
 
 type Pipe struct {
@@ -56,7 +56,7 @@ func (p *Pipe) write() {
 	for msg := range p.outgoing {
 		glog.Infof("Pipe.write: sending message from %v to %v (%v)\n",
 			p.conn.LocalAddr(), p.conn.RemoteAddr(), msg.Timestamp)
-		err := p.encoder.Encode(msg)
+		err := p.encoder.Encode(msg) // TODO possible error here ?
 		if err != nil {
 			glog.Errorf("Pipe.write: message encoding error: %v\n", err)
 		}
