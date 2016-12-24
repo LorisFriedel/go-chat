@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"net"
+	"bytes"
 )
 
 var ClientSuicide = errors.New("client doesn't want to live anymore")
@@ -144,10 +145,9 @@ func (c *Client) ListOwnChan() func(string) []string {
 }
 
 func (c *Client) CloseChan(name string) error {
-	var (
-		ch Channel
-		set bool
-	)
+	var ch *Channel
+	var set bool
+
 	if ch, set = c.ownChans[name]; !set {
 		glog.Errorln("Client.CloseChan: try to close a channel he doesn't own")
 		return fmt.Errorf("can't close channel %s : you're not the owner", name)
@@ -192,6 +192,16 @@ func (c *Client) Me() error {
 		text = fmt.Sprint("Not connected to any channel :(")
 	}
 	c.notify(*newMessage(text, c.identity))
+	return nil
+}
+
+func (c *Client) List() error {
+	var buffer bytes.Buffer
+	buffer.WriteString("List of kown channels:\n")
+	for name, ch := range c.knownChans {
+		buffer.WriteString(fmt.Sprintf("%s (%s:%d)\n", name, ch.address, ch.port))
+	}
+	c.notify(*newMessage(buffer.String(), c.identity))
 	return nil
 }
 

@@ -27,16 +27,16 @@ func main() {
 
 	completer := rl.NewPrefixCompleter(
 		makeItem(prefix, "go", rl.PcItemDynamic(client.ListKnownChan())),
-		makeItem(prefix, "bye"),    // Done
-		makeItem(prefix, "die"),    // Done
+		makeItem(prefix, "bye"),
+		makeItem(prefix, "die"),
 		makeItem(prefix, "help"),   // TODO + command name for help of it OR empty for general help (DYNAMIC)
-		makeItem(prefix, "list"),   // TODO list all registered channel that I can connect on (need to store password)
-		makeItem(prefix, "status"), // TODO print current status of current channel, or the given one
-		makeItem(prefix, "new"),    // Done
+		makeItem(prefix, "list"),
+		// makeItem(prefix, "status"), // TODO status of the current channel (error if you are not the owner)
+		makeItem(prefix, "new"),
 		makeItem(prefix, "forget", rl.PcItemDynamic(client.ListKnownChan())),
 		makeItem(prefix, "close", rl.PcItemDynamic(client.ListOwnChan())),
-		makeItem(prefix, "passwd"), // TODO + new password (error if you are not the owner)
-		makeItem(prefix, "me"),     // Done
+		//  makeItem(prefix, "passwd"), // TODO change channel paswwcord (error if you are not the owner)
+		makeItem(prefix, "me"),
 	)
 
 	rd, err := console.ReaderBuilder.

@@ -1,4 +1,5 @@
 package console
+
 import (
 	"github.com/LorisFriedel/go-chat/core"
 )
