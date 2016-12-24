@@ -15,6 +15,8 @@ type IChannel interface {
 	Addr() net.Addr
 }
 
+// TODO Use password
+
 type Channel struct {
 	open     bool
 	wg       sync.WaitGroup
@@ -80,8 +82,7 @@ func (c *Channel) listenJoin() {
 			continue
 		}
 		c.joins <- conn
-		// TODO password authentication if not known..
-		// TODO !!! i.e. accept connection but start auth procedure, if not successful close connection.
+		// TODO Authentication by password
 	}
 	glog.Infoln("Channel.listen: join handling is now inactive")
 	c.wg.Done()
@@ -100,15 +101,12 @@ func (c *Channel) handleAction() {
 		case <-c.done:
 			// Nothing
 		}
-		//  TODO BYE case
 	}
 	glog.Infoln("Channel.listen: action handling is now inactive")
 	c.wg.Done()
 }
 
 func (c *Channel) Close() (err error) {
-	// TODO Send BYE message to all listener ?!
-
 	// End infinite loop
 	c.open = false
 
@@ -164,49 +162,6 @@ func (c *Channel) Join(conn net.Conn) {
 	}()
 }
 
-func (c *Channel) Bye(hash string) {
-	// TODO
-}
-
-// TODO function remove/delete/bye
-
 func (c *Channel) Addr() net.Addr {
 	return c.listener.Addr()
 }
-
-/*******************/
-
-type KnownChan struct {
-	name    string
-	address string
-	port    int
-	passwd  string // TODO ?
-}
-
-// TODO le password, une fois qu'il est rentré dans l'app, est hashé menu et on l'envoie comme ça
-func newKnownChan(name, address string, port int, passwd string) *KnownChan {
-	return &KnownChan{
-		name:    name,
-		address: address,
-		port:    port,
-		passwd:  passwd,
-	}
-}
-
-// TODO fonction de getConnection() pour pouvoir s'y reconnecter (avec authentiication à chaque fois + stockage de MDP ou bien c'est
-// TODO le serveur qui se rappelle de nous ?????????)
-
-// c'est une pipeline a double sens
-/*
-Il faut qu'il soit sur écoute permannente et puisse envoyé aussi
-Le client a son channel courant enregistré (observer) en tant que recepteur
-
-// Il faut la procédure de connexion/authentifaction bien défini et a part
-
-On aura deux routine, une qui envoie au channel courant dès qu'on met dans le pipeline
-et une qui recoi dès que quelqu'un nous envoi un message
-
-// TODO check les channels qui ont pas déjà la même addres / port
-
-// TODO max client !!!
-*/

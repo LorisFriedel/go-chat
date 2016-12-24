@@ -10,8 +10,6 @@ func init() {
 }
 
 func newCmdNew(client *core.Client, provider IProvider) (Command, error) {
-	// TODO Identify proper pattern & factor.
-
 	name, err := provider.GetString()
 	if err != nil {
 		glog.Errorln("newCmdNew: can't get 'name' args for instantiating command")

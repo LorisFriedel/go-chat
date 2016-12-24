@@ -10,8 +10,6 @@ func init() {
 }
 
 func newCmdGo(client *core.Client, provider IProvider) (Command, error) {
-	// TODO Identify proper pattern & factor.
-
 	name, err := provider.GetString()
 	if err != nil {
 		glog.Errorln("newCmdGo: can't get 'name' args for instantiating command")
@@ -31,14 +29,8 @@ func newCmdGo(client *core.Client, provider IProvider) (Command, error) {
 			return nil, err
 		}
 
-		passwd, err := provider.GetString()
-		if err != nil {
-			glog.Errorln("newCmdGo: can't get 'passwd' args for instantiating command")
-			return nil, err
-		}
-
 		return func() error {
-			return client.Connect(name, address, port, passwd)
+			return client.Connect(name, address, port)
 		}, nil
 	}
 

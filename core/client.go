@@ -12,7 +12,8 @@ var ClientSuicide = errors.New("client doesn't want to live anymore")
 
 type MsgListener func(Message)
 
-// TODO interface ?
+// TODO Interface IClient ?
+
 type Client struct {
 	identity   Identity
 	currPipe   *Pipe
@@ -74,7 +75,7 @@ func (c *Client) CreateChan(name, address string, port int, passwd string) error
 
 	c.ownChans[name] = channel
 
-	err = c.Connect(name, channel.address, channel.port, passwd)
+	err = c.Connect(name, channel.address, channel.port)
 	if err != nil {
 		glog.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", err)
 		return err
@@ -84,7 +85,7 @@ func (c *Client) CreateChan(name, address string, port int, passwd string) error
 	return nil
 }
 
-func (c *Client) Connect(name, address string, port int, passwd string) error {
+func (c *Client) Connect(name, address string, port int) error {
 	if c.currPipe != nil && c.currPipe.IsOpen() {
 		c.currPipe.Close()
 	}
@@ -107,7 +108,7 @@ func (c *Client) Connect(name, address string, port int, passwd string) error {
 		glog.Infof("Client.Connect: adding channel %s to known channels\n", name)
 	}
 
-	kChan := newKnownChan(name, address, port, passwd)
+	kChan := newKnownChan(name, address, port)
 	c.knownChans[name] = kChan
 
 	// TODO Password
@@ -121,7 +122,7 @@ func (c *Client) ConnectKnown(name string) error {
 		return fmt.Errorf("unknown channel: %s", name)
 	}
 
-	return c.Connect(ch.name, ch.address, ch.port, ch.passwd)
+	return c.Connect(ch.name, ch.address, ch.port)
 }
 
 func (c *Client) ListKnownChan() func(string) []string {
@@ -223,6 +224,19 @@ func (c *Client) String() string {
 	return c.identity.Name
 }
 
-// TODO get current satus
-// TODO get server status (if owner/or not, info is different)
-// TODO change server password (if owner)
+
+/*******************/
+
+type KnownChan struct {
+	name    string
+	address string
+	port    int
+}
+
+func newKnownChan(name, address string, port int) *KnownChan {
+	return &KnownChan{
+		name:    name,
+		address: address,
+		port:    port,
+	}
+}

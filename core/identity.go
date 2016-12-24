@@ -14,6 +14,8 @@ type Identity struct {
 	Hash string
 }
 
+// TODO Better
+
 func newIdentity(name string) *Identity {
 	return &Identity{
 		Name: name,
