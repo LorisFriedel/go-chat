@@ -3,8 +3,8 @@ package core
 import (
 	"fmt"
 	"github.com/golang/glog"
-	"log"
 	"net"
+	"sync"
 )
 
 type IChannel interface {
@@ -16,6 +16,9 @@ type IChannel interface {
 }
 
 type Channel struct {
+	open     bool
+	wg       sync.WaitGroup
+	done     chan struct{}
 	clients  []*Pipe
 	joins    chan net.Conn
 	incoming chan Message
@@ -26,9 +29,10 @@ type Channel struct {
 	listener net.Listener
 }
 
-// TODO accept only net.Addr ????!!!!!
 func newChannel(address string, port int, passwd string) *Channel {
 	return &Channel{
+		open:     false,
+		done:     make(chan struct{}),
 		clients:  make([]*Pipe, 0),
 		joins:    make(chan net.Conn),
 		incoming: make(chan Message),
@@ -59,54 +63,75 @@ func (c *Channel) listen() error {
 	}
 
 	c.listener = listener
+	c.open = true
 
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				log.Printf("Connection error: %v", err)
-				continue
-			}
-			// TODO check closed channel ?
-			c.joins <- conn
-			// TODO password authentication if not known..
-			// TODO !!! i.e. accept connection but start auth procedure, if not successful close connection.
-		}
-	}()
-
-	go func() {
-		for {
-			// TODO check closed channel ?
-			select {
-			case msg := <-c.incoming:
-				glog.Infof("received message from: %s (%v)", msg.Sender, msg.Timestamp)
-				c.Broadcast(msg)
-			case conn := <-c.joins:
-				glog.Infof("%v joined the channel", conn.LocalAddr().String())
-				c.Join(conn)
-			}
-		}
-	}()
+	go c.listenJoin()
+	go c.handleAction()
 
 	return nil
 }
 
-func (c *Channel) Close() error {
-	// TODO Send bye message to all listener
-	close(c.joins)
+func (c *Channel) listenJoin() {
+	c.wg.Add(1)
+	for c.open {
+		conn, err := c.listener.Accept()
+		if err != nil {
+			glog.Errorf("Channel.listen: connection error: %v", err)
+			continue
+		}
+		c.joins <- conn
+		// TODO password authentication if not known..
+		// TODO !!! i.e. accept connection but start auth procedure, if not successful close connection.
+	}
+	glog.Infoln("Channel.listen: join handling is now inactive")
+	c.wg.Done()
+}
+
+func (c *Channel) handleAction() {
+	c.wg.Add(1)
+	for c.open {
+		select {
+		case msg := <-c.incoming:
+			glog.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
+			c.Broadcast(msg)
+		case conn := <-c.joins:
+			glog.Infof("Channel.listen: %v joined the channel", conn.LocalAddr().String())
+			c.Join(conn)
+		case <-c.done:
+			// Nothing
+		}
+		//  TODO BYE case
+	}
+	glog.Infoln("Channel.listen: action handling is now inactive")
+	c.wg.Done()
+}
+
+func (c *Channel) Close() (err error) {
+	// TODO Send BYE message to all listener ?!
+
+	// End infinite loop
+	c.open = false
+
+	// Trigger loop re-evaluation
+	close(c.done)
+	err = c.listener.Close()
+
+	// Wait for all loop to properly close
+	c.wg.Wait()
 
 	for _, client := range c.clients {
 		client.Close()
 	}
 
+	close(c.joins)
 	close(c.incoming)
 	close(c.outgoing)
 
-	return c.listener.Close() // TODO call first instead of last ?
+	return
 }
 
 func (c *Channel) Broadcast(msg Message) {
-	glog.Infof("broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
+	glog.Infof("Channel.Broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
 
 	for _, client := range c.clients {
 		// TODO check closed channel ? no in the other function
@@ -120,13 +145,14 @@ func (c *Channel) Join(conn net.Conn) {
 	c.clients = append(c.clients, client)
 
 	go func() {
-		//defer client.Close()
-
-		// TODO check closed channel ? OK ! ?
-		for msg, more := <-client.incoming; more; msg, more = <-client.incoming {
+		for msg := range client.incoming { // Safe loop
 			c.incoming <- msg
 		}
 	}()
+}
+
+func (c *Channel) Bye(conn net.Conn) {
+	/// TODO
 }
 
 // TODO function remove/delete/bye
