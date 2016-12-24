@@ -33,10 +33,10 @@ func main() {
 		makeItem(prefix, "list"),   // TODO list all registered channel that I can connect on (need to store password)
 		makeItem(prefix, "status"), // TODO print current status of current channel, or the given one
 		makeItem(prefix, "new"),    // Done
-		makeItem(prefix, "forget"), // TODO delete known channel (DYNAMIC)
-		makeItem(prefix, "delete"), // TODO delete own channel (DYNAMIC)
+		makeItem(prefix, "forget", rl.PcItemDynamic(client.ListKnownChan())),
+		makeItem(prefix, "close", rl.PcItemDynamic(client.ListOwnChan())),
 		makeItem(prefix, "passwd"), // TODO + new password (error if you are not the owner)
-		makeItem(prefix, "me"),     // TODO display info about me, what channel i'm on, etc..
+		makeItem(prefix, "me"),     // Done
 	)
 
 	rd, err := console.ReaderBuilder.

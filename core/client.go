@@ -43,11 +43,15 @@ func (c *Client) AddListener(listener MsgListener) {
 func (c *Client) listen() {
 	go func() {
 		for msg := range c.currPipe.incoming {
-			for _, listener := range c.listeners {
-				listener(msg)
-			}
+			c.notify(msg)
 		}
 	}()
+}
+
+func (c *Client) notify(msg Message) {
+	for _, listener := range c.listeners {
+		listener(msg)
+	}
 }
 
 func (c *Client) CreateChan(name, address string, port int, passwd string) error {
@@ -129,6 +133,41 @@ func (c *Client) ListKnownChan() func(string) []string {
 	}
 }
 
+func (c *Client) ListOwnChan() func(string) []string {
+	return func(input string) []string {
+		names := make([]string, 0)
+		for name := range c.ownChans {
+			names = append(names, name)
+		}
+		return names
+	}
+}
+
+func (c *Client) CloseChan(name string) error {
+	var (
+		ch Channel
+		set bool
+	)
+	if ch, set = c.ownChans[name]; !set {
+		glog.Errorln("Client.CloseChan: try to close a channel he doesn't own")
+		return fmt.Errorf("can't close channel %s : you're not the owner", name)
+	}
+
+	err := ch.Close()
+	if err != nil {
+		glog.Errorln("Client.CloseChan: error while closing channel")
+		return err
+	}
+
+	err = c.Forget(name)
+	if err != nil {
+		glog.Errorln("Client.CloseChan: error while forgetting channel")
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) Bye() error {
 	glog.Infoln("Client.Bye: disconnecting from current channel")
 	return c.currPipe.Close()
@@ -140,8 +179,19 @@ func (c *Client) Die() error {
 	return ClientSuicide
 }
 
-func (c *Client) Forget(chanName string) error {
-	delete(c.knownChans, chanName)
+func (c *Client) Forget(name string) error {
+	delete(c.knownChans, name)
+	return nil
+}
+
+func (c *Client) Me() error {
+	var text string
+	if c.currPipe != nil && c.currPipe.IsOpen() {
+		text = fmt.Sprintf("Currently connected to %v", c.currPipe.conn.RemoteAddr())
+	} else {
+		text = fmt.Sprint("Not connected to any channel :(")
+	}
+	c.notify(*newMessage(text, c.identity))
 	return nil
 }
 
