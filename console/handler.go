@@ -43,7 +43,8 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 
 	err = cmd()
 
-	if err != nil && err != core.ClientSuicide {
+	if err != nil {
+		// TODO special case for suicide error, that is not really an error
 		glog.Errorf("Handler.Handle: error while executing command: %s\n", cmdName)
 		return err
 	}

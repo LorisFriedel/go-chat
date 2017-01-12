@@ -29,8 +29,14 @@ func newCmdGo(client *core.Client, provider IProvider) (Command, error) {
 			return nil, err
 		}
 
+		password, err := provider.GetString()
+		if err != nil {
+			glog.Errorln("newCmdGo: can't get 'password' args for instantiating command")
+			return nil, err
+		}
+
 		return func() error {
-			return client.Connect(name, address, port)
+			return client.Connect(name, address, port, password)
 		}, nil
 	}
 

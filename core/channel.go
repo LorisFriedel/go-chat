@@ -7,44 +7,33 @@ import (
 	"sync"
 )
 
-type IChannel interface {
-	Open() error
-	Close() error
-	Broadcast(Message)
-	Join(net.Conn)
-	Addr() net.Addr
-}
+// TODO interface ?
 
 // TODO Use password
 
 type Channel struct {
 	open     bool
 	wg       sync.WaitGroup
-	done     chan struct{}
-	clients  []*Pipe
-	joins    chan net.Conn
-	incoming chan Message
-	outgoing chan Message
+	id       Identity
+	registry IRegistry
 	address  string
 	port     int
-	passwd   string
+	password string
 	listener net.Listener
 }
 
-func newChannel(address string, port int, passwd string) *Channel {
+func NewChannel(address string, port int, passwd string) *Channel {
 	return &Channel{
 		open:     false,
-		done:     make(chan struct{}),
-		clients:  make([]*Pipe, 0),
-		joins:    make(chan net.Conn),
-		incoming: make(chan Message),
-		outgoing: make(chan Message),
+		id:       *NewIdentity(fmt.Sprintf("%s:%d", address, port)),
+		registry: NewRegistry(),
 		address:  address,
 		port:     port,
-		passwd:   passwd,
+		password: passwd,
 	}
 }
 
+// Open make the channel listen for connection and handling received message
 func (c *Channel) Open() error {
 	err := c.listen()
 	if err != nil {
@@ -67,13 +56,12 @@ func (c *Channel) listen() error {
 	c.listener = listener
 	c.open = true
 
-	go c.listenJoin()
-	go c.handleAction()
+	go c.handleJoin()
 
 	return nil
 }
 
-func (c *Channel) listenJoin() {
+func (c *Channel) handleJoin() {
 	c.wg.Add(1)
 	for c.open {
 		conn, err := c.listener.Accept()
@@ -81,87 +69,111 @@ func (c *Channel) listenJoin() {
 			glog.Errorf("Channel.listen: connection error: %v", err)
 			continue
 		}
-		c.joins <- conn
-		// TODO Authentication by password
+		go c.Join(conn)
+		glog.Infof("Channel.listen: %v connected to channel", conn.LocalAddr().String())
 	}
+	c.wg.Done()
 	glog.Infoln("Channel.listen: join handling is now inactive")
-	c.wg.Done()
-}
-
-func (c *Channel) handleAction() {
-	c.wg.Add(1)
-	for c.open {
-		select {
-		case msg := <-c.incoming:
-			glog.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
-			c.Broadcast(msg)
-		case conn := <-c.joins:
-			glog.Infof("Channel.listen: %v joined the channel", conn.LocalAddr().String())
-			c.Join(conn)
-		case <-c.done:
-			// Nothing
-		}
-	}
-	glog.Infoln("Channel.listen: action handling is now inactive")
-	c.wg.Done()
 }
 
 func (c *Channel) Close() (err error) {
 	// End infinite loop
 	c.open = false
 
-	// Trigger loop re-evaluation
-	close(c.done)
+	// Close tcp connection
 	err = c.listener.Close()
 
-	// Wait for all loop to properly close
+	// Wait for all loop to properly end
 	c.wg.Wait()
 
-	for _, client := range c.clients {
-		if client.IsOpen() {
-			client.Close()
+	// Close client pipes
+	c.registry.Foreach(func(id Identity, p *Pipe) {
+		if p.IsOpen() {
+			p.Close()
 		}
-	}
-
-	close(c.joins)
-	close(c.incoming)
-	close(c.outgoing)
+	})
 
 	return
 }
 
+// Handle is used to handle message received from connected client
+func (c *Channel) Handle(msg Message) {
+	// TODO Handle regarding message type ?
+	c.Broadcast(msg)
+}
+
+// Broadcast send the given message to every client connected to the channel
 func (c *Channel) Broadcast(msg Message) {
 	glog.Infof("Channel.Broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
 
-	for _, client := range c.clients {
-		if client.IsOpen() {
-			client.outgoing <- msg
+	c.registry.Foreach(func(id Identity, p *Pipe) {
+		if p.IsOpen() {
+			p.Write(msg) // TODO not ignore error ? I mean, who cares ?
 		}
-	}
+	})
 }
 
-func (c *Channel) clearDisconnected() {
-	filtered := c.clients[:0]
-	for _, client := range c.clients {
-		if client.IsOpen() {
-			filtered = append(filtered, client)
-		}
-	}
-	c.clients = filtered
-}
-
+// Join create a pipe between the channel and the given connection
+// and start listening for client message, after executing the authentication procedure
+// (the client must know the protocol)
 func (c *Channel) Join(conn net.Conn) {
-	client := newPipe(conn)
-	client.Open()
-	c.clients = append(c.clients, client)
+	// Open pipe to communicate with the client
+	p := NewPipe(conn)
 
-	go func() {
-		for msg := range client.incoming { // Safe loop
-			c.incoming <- msg
+	// Listen for HELLO message, with client Identity
+	msgHello, err := p.Read()
+	if err != nil {
+		// TODO handle error
+	}
+	// TODO check message type (must be HELLO)
+	id := msgHello.Sender
+
+	// TODO handle when no password ?????
+
+	// TODO MAXI TODO ::::::: REMOVE MESSAGE TYPE ? USELESS ?? YES
+
+	// If user is already in our registry, he is authenticated no need for password, send welcome back message
+	if c.registry.Exists(id) {
+		p.Write(*NewMsg(c.id, WELCOME_BACK)) // TODO handle write error
+	} else { // If not, ask for password
+		p.Write(*NewMsg(c.id, PASSWORD_PLEASE)) // TODO handle write error
+		msgPassword, err := p.Read()            // TODO message type must be PASSWORD
+		if err != nil {
+			// TODO handle error
 		}
-	}()
+
+		// If password match, OK
+		if msgPassword.Text == c.password {
+			p.Write(*NewMsg(c.id, WELCOME)) // TODO handle write error
+		} else { // If not, close connection.
+			p.Write(*NewMsg(c.id, WRONG_PASSWORD)) // TODO handle write error
+			return                                 // TODO better error / loop ??
+		}
+	}
+
+	c.registry.Push(id, p)
+	c.Broadcast(*NewMsgText(c.id, fmt.Sprintf("%s joined the channel.", id.Name)))
+	glog.Infof("Channel.listen: %s joined the channel (%s)", id.Name, id.Hash)
+
+	go func(id Identity, p *Pipe) {
+		// While client is connected
+		for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
+			if err != nil { // TODO handle error another way ?
+				// TODO log error
+				continue
+			}
+			glog.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
+			c.Handle(msg)
+		}
+
+		// Here client is disconnected, pipe with him is closed
+		c.registry.Pop(id)
+		c.Broadcast(*NewMsgText(c.id, fmt.Sprintf("%s leaved the channel.", id.Name)))
+		glog.Infof("Channel.listen: %s leaved the channel (%s)", id.Name, id.Hash)
+	}(id, p)
 }
 
+// Addr return the ip address of the channel
 func (c *Channel) Addr() net.Addr {
 	return c.listener.Addr()
 }

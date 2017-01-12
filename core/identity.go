@@ -10,13 +10,15 @@ import (
 )
 
 type Identity struct {
+	// Must be public for marshalling
 	Name string
 	Hash string
 }
 
 // TODO Better
+// TODO find a way to have unique identifier for each client and channel
 
-func newIdentity(name string) *Identity {
+func NewIdentity(name string) *Identity {
 	return &Identity{
 		Name: name,
 		Hash: genIdHash(),
@@ -26,7 +28,7 @@ func newIdentity(name string) *Identity {
 func genIdHash() (id string) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		id = randToken(64)
+		id = randToken(128)
 	} else {
 		var buffer bytes.Buffer
 
@@ -36,11 +38,9 @@ func genIdHash() (id string) {
 			if len(h) == 0 || len(n) == 0 {
 				continue
 			}
-			buffer.WriteString(n)
-			buffer.WriteString(h)
-			buffer.WriteString("_")
+			buffer.WriteString(fmt.Sprintf("%s%s_", n, h))
 		}
-		buffer.WriteString(randToken(16))
+		buffer.WriteString(randToken(32))
 		hasher := sha1.New()
 		hasher.Write(buffer.Bytes())
 		id = base64.URLEncoding.EncodeToString(hasher.Sum(nil))
@@ -52,4 +52,8 @@ func randToken(size int) string {
 	b := make([]byte, size)
 	rand.Read(b)
 	return fmt.Sprintf("%x", b)
+}
+
+func (id *Identity) String() string {
+	return fmt.Sprintf("(%s,%s)", id.Name, id.Hash)
 }

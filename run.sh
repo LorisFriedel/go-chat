@@ -2,7 +2,7 @@
 
 BIN_PATH=./bin
 
-if [ ! -f $BIN_PATH/chat ]; then
+if [ ! -f $BIN_PATH/go-chat ]; then
     ./build.sh
 fi
 

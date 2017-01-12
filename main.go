@@ -29,7 +29,7 @@ func main() {
 		makeItem(prefix, "go", rl.PcItemDynamic(client.ListKnownChan())),
 		makeItem(prefix, "bye"),
 		makeItem(prefix, "die"),
-		makeItem(prefix, "help"),   // TODO + command name for help of it OR empty for general help (DYNAMIC)
+		// makeItem(prefix, "help"), // TODO + command name for help of it OR empty for general help (DYNAMIC)
 		makeItem(prefix, "list"),
 		// makeItem(prefix, "status"), // TODO status of the current channel (error if you are not the owner)
 		makeItem(prefix, "new"),

@@ -1,12 +1,12 @@
 SOURCEDIR=.
 SOURCES=$(shell find ${SOURCEDIR} -name '*.go')
 
-BINARY=chat
+BINARY=go-chat
 
 .DEFAULT_GOAL: install
 
 ${BINARY}: ${SOURCES}
-	go build -o ./bin/${BINARY} main.go
+	go get ${SOURCEDIR} && go build -o ./bin/${BINARY} main.go
 
 .PHONY: install
 install:

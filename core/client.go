@@ -1,14 +1,19 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/golang/glog"
 	"net"
-	"bytes"
 )
 
-var ClientSuicide = errors.New("client doesn't want to live anymore")
+var (
+	ClientSuicide    = errors.New("client doesn't want to live anymore")
+	ErrWrongPassword = errors.New("wrong password")
+	ErrChannel       = errors.New("channel error")
+	ErrUnknown       = errors.New("unknown error")
+)
 
 type MsgListener func(Message)
 
@@ -17,6 +22,7 @@ type MsgListener func(Message)
 type Client struct {
 	identity   Identity
 	currPipe   *Pipe
+	currChan   *KnownChan
 	knownChans map[string]*KnownChan
 	ownChans   map[string]*Channel
 	listeners  []MsgListener
@@ -24,8 +30,9 @@ type Client struct {
 
 func NewClient(name string) *Client {
 	return &Client{
-		identity:   *newIdentity(name),
+		identity:   *NewIdentity(name),
 		currPipe:   nil,
+		currChan:   nil,
 		knownChans: make(map[string]*KnownChan),
 		ownChans:   make(map[string]*Channel),
 		listeners:  make([]MsgListener, 0, 1),
@@ -43,11 +50,14 @@ func (c *Client) AddListener(listener MsgListener) {
 // TODO function DelListener ?
 
 func (c *Client) listen() {
-	go func() {
-		for msg := range c.currPipe.incoming {
-			c.notify(msg)
+	p := c.currPipe
+	for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
+		if err != nil {
+			// TODO log error
+			continue
 		}
-	}()
+		c.notify(msg)
+	}
 }
 
 func (c *Client) notify(msg Message) {
@@ -56,8 +66,8 @@ func (c *Client) notify(msg Message) {
 	}
 }
 
-func (c *Client) CreateChan(name, address string, port int, passwd string) error {
-	channel := newChannel(address, port, passwd)
+func (c *Client) CreateChan(name, address string, port int, password string) error {
+	channel := NewChannel(address, port, password)
 
 	if ch, ok := c.ownChans[name]; ok {
 		err := ch.Close()
@@ -75,7 +85,7 @@ func (c *Client) CreateChan(name, address string, port int, passwd string) error
 
 	c.ownChans[name] = channel
 
-	err = c.Connect(name, channel.address, channel.port)
+	err = c.Connect(name, channel.address, channel.port, password)
 	if err != nil {
 		glog.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", err)
 		return err
@@ -85,7 +95,7 @@ func (c *Client) CreateChan(name, address string, port int, passwd string) error
 	return nil
 }
 
-func (c *Client) Connect(name, address string, port int) error {
+func (c *Client) Connect(name, address string, port int, password string) error {
 	if c.currPipe != nil && c.currPipe.IsOpen() {
 		c.currPipe.Close()
 	}
@@ -97,10 +107,7 @@ func (c *Client) Connect(name, address string, port int) error {
 	}
 
 	// Create pipe to communicate with the channel
-	pipe := newPipe(conn)
-	pipe.Open()
-	c.currPipe = pipe
-	c.listen()
+	c.currPipe = NewPipe(conn)
 
 	if _, set := c.knownChans[name]; set {
 		glog.Infof("Client.Connect: replacing channel %s in known channels\n", name)
@@ -108,10 +115,43 @@ func (c *Client) Connect(name, address string, port int) error {
 		glog.Infof("Client.Connect: adding channel %s to known channels\n", name)
 	}
 
-	kChan := newKnownChan(name, address, port)
+	kChan := newKnownChan(name, address, port, password)
 	c.knownChans[name] = kChan
+	c.currChan = kChan
 
-	// TODO Password
+	c.send(*NewMsg(c.identity, HELLO))
+	msg, err := c.currPipe.Read()
+	if err != nil {
+		// TODO handle error
+	}
+
+	// TODO handle when no password  ? + command
+
+	switch msg.Type {
+	case WELCOME_BACK:
+		// Empty, we are connected and already authenticated
+	case PASSWORD_PLEASE:
+		c.currPipe.Write(*NewMsgPassword(c.identity, password))
+		answer, err := c.currPipe.Read()
+		if err != nil {
+			// TODO handle error
+		}
+		if answer.Type != WELCOME {
+			switch answer.Type {
+			case WRONG_PASSWORD:
+				return ErrWrongPassword
+			case ERROR:
+				return ErrChannel
+			default:
+				return ErrUnknown
+			}
+		}
+		// Authentication OK
+	}
+
+	go c.listen()
+	c.notify(*NewMsgText(c.identity, fmt.Sprintf("Now connected to %v", kChan)))
+
 	return nil
 }
 
@@ -122,7 +162,7 @@ func (c *Client) ConnectKnown(name string) error {
 		return fmt.Errorf("unknown channel: %s", name)
 	}
 
-	return c.Connect(ch.name, ch.address, ch.port)
+	return c.Connect(ch.name, ch.address, ch.port, ch.password)
 }
 
 func (c *Client) ListKnownChan() func(string) []string {
@@ -170,7 +210,19 @@ func (c *Client) CloseChan(name string) error {
 }
 
 func (c *Client) Bye() error {
+	defer func() {
+		c.currChan = nil
+		c.currPipe = nil
+	}()
+
+	if c.currPipe == nil || !c.currPipe.IsOpen() {
+		return errors.New("not connected to any channel")
+	}
+
 	glog.Infoln("Client.Bye: disconnecting from current channel")
+	// We don't tell the channel we are leaving, he will notice himself
+	c.notify(*NewMsgText(c.identity, fmt.Sprintf("Goodbye %v", c.currChan))) // TODO useless (or proper bye notification) ?
+
 	return c.currPipe.Close()
 }
 
@@ -188,55 +240,60 @@ func (c *Client) Forget(name string) error {
 func (c *Client) Me() error {
 	var text string
 	if c.currPipe != nil && c.currPipe.IsOpen() {
-		text = fmt.Sprintf("Currently connected to %v", c.currPipe.conn.RemoteAddr())
+		text = fmt.Sprintf("Currently connected to %v", c.currChan)
 	} else {
 		text = fmt.Sprint("Not connected to any channel :(")
 	}
-	c.notify(*newMessage(text, c.identity))
+	c.notify(*NewMsgText(c.identity, text))
 	return nil
 }
 
 func (c *Client) List() error {
 	var buffer bytes.Buffer
 	buffer.WriteString("List of kown channels:\n")
-	for name, ch := range c.knownChans {
-		buffer.WriteString(fmt.Sprintf("%s (%s:%d)\n", name, ch.address, ch.port))
+	for _, ch := range c.knownChans {
+		buffer.WriteString(fmt.Sprintln(ch))
 	}
-	c.notify(*newMessage(buffer.String(), c.identity))
+	c.notify(*NewMsgText(c.identity, buffer.String()))
 	return nil
 }
 
 func (c *Client) SendMessage(text string) error {
 	glog.Infoln("Client.SendMessage: sending message")
+	return c.send(*NewMsgText(c.identity, text))
+}
 
-	msg := newMessage(text, c.identity)
-
+func (c *Client) send(msg Message) error {
 	if c.currPipe == nil || !c.currPipe.IsOpen() {
 		glog.Errorln("Client.SendMessage: client is not connected to any channel")
-		return fmt.Errorf("client is not connected to any channel, can't send message \"%s\"", text)
+		return errors.New("client is not connected to any channel, can't send message")
 	}
 
-	c.currPipe.outgoing <- *msg
-	return nil
+	return c.currPipe.Write(msg)
 }
 
 func (c *Client) String() string {
 	return c.identity.Name
 }
 
-
 /*******************/
 
 type KnownChan struct {
-	name    string
-	address string
-	port    int
+	name     string
+	address  string
+	port     int
+	password string
 }
 
-func newKnownChan(name, address string, port int) *KnownChan {
+func newKnownChan(name, address string, port int, password string) *KnownChan {
 	return &KnownChan{
-		name:    name,
-		address: address,
-		port:    port,
+		name:     name,
+		address:  address,
+		port:     port,
+		password: password,
 	}
+}
+
+func (k *KnownChan) String() string {
+	return fmt.Sprintf("%s (%s:%d)", k.name, k.address, k.port)
 }

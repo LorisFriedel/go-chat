@@ -1,4 +1,5 @@
 package console
+
 import (
 	"github.com/LorisFriedel/go-chat/core"
 	"github.com/golang/glog"
@@ -19,4 +20,3 @@ func newCmdClose(client *core.Client, provider IProvider) (Command, error) {
 		return client.CloseChan(chanName)
 	}, nil
 }
-

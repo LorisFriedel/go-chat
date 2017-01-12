@@ -2,95 +2,76 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/golang/glog"
 	"io"
 	"net"
 	"sync"
 )
 
-type Pipe struct {
-	conn     net.Conn
-	open     bool
-	wg       sync.WaitGroup
-	incoming chan Message
-	outgoing chan Message
-	decoder  *json.Decoder
-	encoder  *json.Encoder
+type IPipe interface {
+	Read() (Message, error)
+	Write(Message) error
+	Close() error
 }
 
-func newPipe(conn net.Conn) *Pipe {
+type Pipe struct {
+	conn    net.Conn
+	open    bool
+	wg      sync.WaitGroup
+	decoder *json.Decoder
+	encoder *json.Encoder
+}
+
+var ErrPipeClosed error = errors.New("pipe is closed")
+
+func NewPipe(conn net.Conn) *Pipe {
 	pipe := &Pipe{
-		conn:     conn,
-		open:     false,
-		incoming: make(chan Message),
-		outgoing: make(chan Message),
-		decoder:  json.NewDecoder(conn),
-		encoder:  json.NewEncoder(conn),
+		conn:    conn,
+		open:    true,
+		decoder: json.NewDecoder(conn),
+		encoder: json.NewEncoder(conn),
 	}
 
-	// TODO maybe open here ?
 	return pipe
 }
 
-func (p *Pipe) read() {
-	p.wg.Add(1)
-	for p.open {
-		var msg Message
-		err := p.decoder.Decode(&msg)
-		if err != nil {
-			if err == io.EOF {
-				p.Close()
-				break
-			} else {
-				glog.Errorf("Pipe.read: message decoding error: %v", err)
-				continue
-			}
-		}
-		p.incoming <- msg
+func (p *Pipe) Read() (msg Message, err error) {
+	err = p.decoder.Decode(&msg)
+	if err == io.EOF {
+		p.Close()
+		err = ErrPipeClosed
 	}
-	p.wg.Done()
-	glog.Infof("Pipe.read: stop reading process for channel %v\n", p.conn.RemoteAddr())
+	return
 }
 
-func (p *Pipe) write() {
-	for msg := range p.outgoing {
-		glog.Infof("Pipe.write: sending message from %v to %v (%v)\n",
-			p.conn.LocalAddr(), p.conn.RemoteAddr(), msg.Timestamp)
-		err := p.encoder.Encode(msg) // TODO possible error here ?
-		if err != nil {
-			glog.Errorf("Pipe.write: message encoding error: %v\n", err)
-		}
+func (p *Pipe) Write(msg Message) (err error) {
+	err = p.encoder.Encode(msg)
+	if err != nil {
+		glog.Errorf("Pipe.write: message encoding error: %v\n", err)
 	}
-	glog.Infof("Pipe.write: stop reading process for channel %v\n", p.conn.LocalAddr())
+	return
 }
 
-func (p *Pipe) Open() {
-	p.open = true
-	go p.read()
-	go p.write()
-}
-
-func (p *Pipe) Close() (err error) {
+func (p *Pipe) Close() error {
+	if !p.open {
+		return ErrPipeClosed
+	}
 	p.open = false
 
-	glog.Infoln("Pipe.Close: closing outgoing channel")
-	close(p.outgoing) // break the infinite loop
-
 	glog.Infoln("Pipe.Close: closing pipe connection")
-	err = p.conn.Close() // break the infinite loop
+	err := p.conn.Close() // break the infinite loop
 	if err != nil {
 		glog.Errorln("Pipe.Close: net.Conn not properly closed")
+		return err
 	}
 
 	glog.Infoln("Pipe.Close: waiting for pipe to properly close")
 	p.wg.Wait()
 
-	glog.Infoln("Pipe.Close: closing incoming channel")
-	close(p.incoming)
-
-	return
+	return nil
 }
 
 func (p *Pipe) IsOpen() bool {
-	return p.open // TODO better check ?
+	return p.open
 }
