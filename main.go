@@ -15,6 +15,8 @@ import (
 
 var prefix = "!"
 
+// TODO add flag to start a channel from command line (with parameters)
+
 func main() {
 	flag.Parse() // glog need that
 
@@ -35,7 +37,6 @@ func main() {
 		makeItem(prefix, "new"),
 		makeItem(prefix, "forget", rl.PcItemDynamic(client.ListKnownChan())),
 		makeItem(prefix, "close", rl.PcItemDynamic(client.ListOwnChan())),
-		//  makeItem(prefix, "passwd"), // TODO change channel paswwcord (error if you are not the owner)
 		makeItem(prefix, "me"),
 	)
 

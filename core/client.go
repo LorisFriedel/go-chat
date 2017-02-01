@@ -17,7 +17,7 @@ var (
 
 type MsgListener func(Message)
 
-// TODO Interface IClient ?
+// TODO interface ?
 
 type Client struct {
 	identity   Identity
@@ -122,10 +122,8 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 	c.send(*NewMsg(c.identity, HELLO))
 	msg, err := c.currPipe.Read()
 	if err != nil {
-		// TODO handle error
+		return err
 	}
-
-	// TODO handle when no password  ? + command
 
 	switch msg.Type {
 	case WELCOME_BACK:

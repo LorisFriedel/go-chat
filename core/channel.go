@@ -9,8 +9,6 @@ import (
 
 // TODO interface ?
 
-// TODO Use password
-
 type Channel struct {
 	open     bool
 	wg       sync.WaitGroup
@@ -122,24 +120,23 @@ func (c *Channel) Join(conn net.Conn) {
 
 	// Listen for HELLO message, with client Identity
 	msgHello, err := p.Read()
-	if err != nil {
-		// TODO handle error
+	if err != nil || msgHello.Type != HELLO {
+		return
 	}
-	// TODO check message type (must be HELLO)
+
 	id := msgHello.Sender
 
-	// TODO handle when no password ?????
-
-	// TODO MAXI TODO ::::::: REMOVE MESSAGE TYPE ? USELESS ?? YES
+	// TODO Message type useless ?
 
 	// If user is already in our registry, he is authenticated no need for password, send welcome back message
 	if c.registry.Exists(id) {
 		p.Write(*NewMsg(c.id, WELCOME_BACK)) // TODO handle write error
 	} else { // If not, ask for password
 		p.Write(*NewMsg(c.id, PASSWORD_PLEASE)) // TODO handle write error
-		msgPassword, err := p.Read()            // TODO message type must be PASSWORD
-		if err != nil {
-			// TODO handle error
+		msgPassword, err := p.Read()
+		if err != nil || msgPassword.Type != PASSWORD {
+			p.Write(*NewMsg(c.id, ERROR)) // TODO handle write error
+			return
 		}
 
 		// If password match, OK
@@ -147,7 +144,7 @@ func (c *Channel) Join(conn net.Conn) {
 			p.Write(*NewMsg(c.id, WELCOME)) // TODO handle write error
 		} else { // If not, close connection.
 			p.Write(*NewMsg(c.id, WRONG_PASSWORD)) // TODO handle write error
-			return                                 // TODO better error / loop ??
+			return
 		}
 	}
 
@@ -158,7 +155,7 @@ func (c *Channel) Join(conn net.Conn) {
 	go func(id Identity, p *Pipe) {
 		// While client is connected
 		for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
-			if err != nil { // TODO handle error another way ?
+			if err != nil { // TODO handle error in another way ?
 				// TODO log error
 				continue
 			}
