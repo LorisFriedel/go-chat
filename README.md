@@ -1,7 +1,7 @@
 # go-chat
 Simple chat application written in Go
 
-##Available command:
+## Available command:
 If no command is specified, the written text is considered as a message to be sent on the current channel. 
  + !go name (address port)
     + Connect to a channel. If address nor port are mentioned, try to connect to a known channel. If the connection is successful, the channel is added to known channels. Be careful, known channels can be forgotten if the given name is an already known channel
