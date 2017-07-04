@@ -2,7 +2,8 @@ package console
 
 import (
 	"github.com/LorisFriedel/go-chat/core"
-	"github.com/golang/glog"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -12,7 +13,7 @@ func init() {
 func newCmdForget(client *core.Client, provider IProvider) (Command, error) {
 	chanName, err := provider.GetString()
 	if err != nil {
-		glog.Errorln("newCmdForget: can't get 'chanName' args for instantiating command")
+		log.Errorln("newCmdForget: can't get 'chanName' args for instantiating command")
 		return nil, err
 	}
 

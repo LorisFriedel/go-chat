@@ -2,9 +2,10 @@ package core
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"net"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // TODO interface ?
@@ -35,11 +36,11 @@ func NewChannel(address string, port int, passwd string) *Channel {
 func (c *Channel) Open() error {
 	err := c.listen()
 	if err != nil {
-		glog.Errorln("Channel.Open: can't open channel connection")
+		log.Errorln("Channel.Open: can't open channel connection")
 		return err
 	}
 
-	glog.Infof("Channel oppened on %s\n", c.listener.Addr().String())
+	log.Infof("Channel oppened on %s\n", c.listener.Addr().String())
 	return nil
 }
 
@@ -47,7 +48,7 @@ func (c *Channel) listen() error {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", c.address, c.port))
 
 	if err != nil {
-		glog.Errorf("Client.listen: can't listen on (%s)\n", fmt.Sprintf("%s:%d", c.address, c.port))
+		log.Errorf("Client.listen: can't listen on (%s)\n", fmt.Sprintf("%s:%d", c.address, c.port))
 		return err
 	}
 
@@ -64,14 +65,14 @@ func (c *Channel) handleJoin() {
 	for c.open {
 		conn, err := c.listener.Accept()
 		if err != nil {
-			glog.Errorf("Channel.listen: connection error: %v", err)
+			log.Errorf("Channel.listen: connection error: %v", err)
 			continue
 		}
 		go c.Join(conn)
-		glog.Infof("Channel.listen: %v connected to channel", conn.LocalAddr().String())
+		log.Infof("Channel.listen: %v connected to channel", conn.LocalAddr().String())
 	}
 	c.wg.Done()
-	glog.Infoln("Channel.listen: join handling is now inactive")
+	log.Infoln("Channel.listen: join handling is now inactive")
 }
 
 func (c *Channel) Close() (err error) {
@@ -102,7 +103,7 @@ func (c *Channel) Handle(msg Message) {
 
 // Broadcast send the given message to every client connected to the channel
 func (c *Channel) Broadcast(msg Message) {
-	glog.Infof("Channel.Broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
+	log.Infof("Channel.Broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
 
 	c.registry.Foreach(func(id Identity, p *Pipe) {
 		if p.IsOpen() {
@@ -150,7 +151,7 @@ func (c *Channel) Join(conn net.Conn) {
 
 	c.registry.Push(id, p)
 	c.Broadcast(*NewMsgText(c.id, fmt.Sprintf("%s joined the channel.", id.Name)))
-	glog.Infof("Channel.listen: %s joined the channel (%s)", id.Name, id.Hash)
+	log.Infof("Channel.listen: %s joined the channel (%s)", id.Name, id.Hash)
 
 	go func(id Identity, p *Pipe) {
 		// While client is connected
@@ -159,14 +160,14 @@ func (c *Channel) Join(conn net.Conn) {
 				// TODO log error
 				continue
 			}
-			glog.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
+			log.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
 			c.Handle(msg)
 		}
 
 		// Here client is disconnected, pipe with him is closed
 		c.registry.Pop(id)
 		c.Broadcast(*NewMsgText(c.id, fmt.Sprintf("%s leaved the channel.", id.Name)))
-		glog.Infof("Channel.listen: %s leaved the channel (%s)", id.Name, id.Hash)
+		log.Infof("Channel.listen: %s leaved the channel (%s)", id.Name, id.Hash)
 	}(id, p)
 }
 

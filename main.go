@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
+	"os"
+	"strings"
+
 	"github.com/LorisFriedel/go-chat/console"
 	"github.com/LorisFriedel/go-chat/core"
 	rl "github.com/chzyer/readline"
-	"io"
-	"log"
-	"os"
-	"strings"
 )
 
 var prefix = "!"
@@ -104,12 +104,20 @@ func makeItem(prefix string, name string, pc ...rl.PrefixCompleterInterface) *rl
 
 func getUserName() string {
 	fmt.Println("Welcome stranger ! What's your name ?")
-	fmt.Print("> ")
-	name, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	var name string
+	var err error
 
-	if err != nil {
-		log.Fatal("Oh noooo! Invalid user name, bye bye :(")
+	done := false
+	for !done {
+		fmt.Print("> ")
+		name, err = bufio.NewReader(os.Stdin).ReadString('\n')
+
+		if err != nil || len(strings.TrimSpace(name)) == 0 {
+			fmt.Println("Hmmm, tell me your name again")
+		} else {
+			done = true
+		}
 	}
 
-	return strings.Trim(name, "\n")
+	return strings.TrimSpace(name)
 }

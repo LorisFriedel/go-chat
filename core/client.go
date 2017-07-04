@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
 	"net"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -72,14 +73,14 @@ func (c *Client) CreateChan(name, address string, port int, password string) err
 	if ch, ok := c.ownChans[name]; ok {
 		err := ch.Close()
 		if err != nil {
-			glog.Errorf("Client.CreateChan: error while closing channel %v", ch.Addr())
+			log.Errorf("Client.CreateChan: error while closing channel %v", ch.Addr())
 		}
-		glog.Infof("Client.CreateChan: channel %v will be replaced", ch.Addr())
+		log.Infof("Client.CreateChan: channel %v will be replaced", ch.Addr())
 	}
 
 	err := channel.Open()
 	if err != nil {
-		glog.Errorf("Client.CreateChan: channel created but won't open (%v)\n", channel)
+		log.Errorf("Client.CreateChan: channel created but won't open (%v)\n", channel)
 		return err
 	}
 
@@ -87,11 +88,11 @@ func (c *Client) CreateChan(name, address string, port int, password string) err
 
 	err = c.Connect(name, channel.address, channel.port, password)
 	if err != nil {
-		glog.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", err)
+		log.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", err)
 		return err
 	}
 
-	glog.Infoln("Client.CreateChan: successfully created channel, client is now connected to it")
+	log.Infoln("Client.CreateChan: successfully created channel, client is now connected to it")
 	return nil
 }
 
@@ -102,7 +103,7 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", address, port))
 	if err != nil {
-		glog.Errorf("Client.Connect: connection failure on (%s:%d)\n", address, port)
+		log.Errorf("Client.Connect: connection failure on (%s:%d)\n", address, port)
 		return err
 	}
 
@@ -110,9 +111,9 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 	c.currPipe = NewPipe(conn)
 
 	if _, set := c.knownChans[name]; set {
-		glog.Infof("Client.Connect: replacing channel %s in known channels\n", name)
+		log.Infof("Client.Connect: replacing channel %s in known channels\n", name)
 	} else {
-		glog.Infof("Client.Connect: adding channel %s to known channels\n", name)
+		log.Infof("Client.Connect: adding channel %s to known channels\n", name)
 	}
 
 	kChan := newKnownChan(name, address, port, password)
@@ -156,7 +157,7 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 func (c *Client) ConnectKnown(name string) error {
 	ch, set := c.knownChans[name]
 	if !set {
-		glog.Errorf("Client.ConnectKnown: client tried to connect to an unexisting known channel (%v)\n", name)
+		log.Errorf("Client.ConnectKnown: client tried to connect to an unexisting known channel (%v)\n", name)
 		return fmt.Errorf("unknown channel: %s", name)
 	}
 
@@ -188,19 +189,19 @@ func (c *Client) CloseChan(name string) error {
 	var set bool
 
 	if ch, set = c.ownChans[name]; !set {
-		glog.Errorln("Client.CloseChan: try to close a channel he doesn't own")
+		log.Errorln("Client.CloseChan: try to close a channel he doesn't own")
 		return fmt.Errorf("can't close channel %s : you're not the owner", name)
 	}
 
 	err := ch.Close()
 	if err != nil {
-		glog.Errorln("Client.CloseChan: error while closing channel")
+		log.Errorln("Client.CloseChan: error while closing channel")
 		return err
 	}
 
 	err = c.Forget(name)
 	if err != nil {
-		glog.Errorln("Client.CloseChan: error while forgetting channel")
+		log.Errorln("Client.CloseChan: error while forgetting channel")
 		return err
 	}
 
@@ -217,7 +218,7 @@ func (c *Client) Bye() error {
 		return errors.New("not connected to any channel")
 	}
 
-	glog.Infoln("Client.Bye: disconnecting from current channel")
+	log.Infoln("Client.Bye: disconnecting from current channel")
 	// We don't tell the channel we are leaving, he will notice himself
 	c.notify(*NewMsgText(c.identity, fmt.Sprintf("Goodbye %v", c.currChan))) // TODO useless (or proper bye notification) ?
 
@@ -225,7 +226,7 @@ func (c *Client) Bye() error {
 }
 
 func (c *Client) Die() error {
-	glog.Infoln("Client.Die: end of the client instance")
+	log.Infoln("Client.Die: end of the client instance")
 	c.Bye()
 	return ClientSuicide
 }
@@ -257,13 +258,13 @@ func (c *Client) List() error {
 }
 
 func (c *Client) SendMessage(text string) error {
-	glog.Infoln("Client.SendMessage: sending message")
+	log.Infoln("Client.SendMessage: sending message")
 	return c.send(*NewMsgText(c.identity, text))
 }
 
 func (c *Client) send(msg Message) error {
 	if c.currPipe == nil || !c.currPipe.IsOpen() {
-		glog.Errorln("Client.SendMessage: client is not connected to any channel")
+		log.Errorln("Client.SendMessage: client is not connected to any channel")
 		return errors.New("client is not connected to any channel, can't send message")
 	}
 

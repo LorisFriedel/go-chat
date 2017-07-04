@@ -4,5 +4,5 @@ cd $(dirname $0)
 BIN_PATH=./bin
 SUB_SRC_PATH=./src
 
-rm -Rf $BIN_PATH $SUB_SRC_PATH
+sudo rm -Rf $BIN_PATH $SUB_SRC_PATH
 echo "Clean done."

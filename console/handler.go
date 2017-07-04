@@ -3,7 +3,8 @@ package console
 import (
 	"fmt"
 	"github.com/LorisFriedel/go-chat/core"
-	"github.com/golang/glog"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type IHandler interface {
@@ -22,7 +23,7 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 	// Parse input
 	provider, err := h.parser.Parse(input)
 	if err != nil {
-		glog.Errorf("Handler.Handle: error while parsing input: %s\n", input)
+		log.Errorf("Handler.Handle: error while parsing input: %s\n", input)
 		return err
 	}
 
@@ -32,7 +33,7 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 	// Create executable command
 	cmd, err := NewCommand(client, cmdName, provider)
 	if err != nil {
-		glog.Errorf("Handler.Handle: error while instanciating command: %s\n", cmdName)
+		log.Errorf("Handler.Handle: error while instanciating command: %s\n", cmdName)
 		return err
 	}
 
@@ -45,7 +46,7 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 
 	if err != nil {
 		// TODO special case for suicide error, that is not really an error
-		glog.Errorf("Handler.Handle: error while executing command: %s\n", cmdName)
+		log.Errorf("Handler.Handle: error while executing command: %s\n", cmdName)
 		return err
 	}
 

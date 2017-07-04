@@ -3,10 +3,11 @@ package core
 import (
 	"encoding/json"
 	"errors"
-	"github.com/golang/glog"
 	"io"
 	"net"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type IPipe interface {
@@ -48,7 +49,7 @@ func (p *Pipe) Read() (msg Message, err error) {
 func (p *Pipe) Write(msg Message) (err error) {
 	err = p.encoder.Encode(msg)
 	if err != nil {
-		glog.Errorf("Pipe.write: message encoding error: %v\n", err)
+		log.Errorf("Pipe.write: message encoding error: %v\n", err)
 	}
 	return
 }
@@ -59,14 +60,14 @@ func (p *Pipe) Close() error {
 	}
 	p.open = false
 
-	glog.Infoln("Pipe.Close: closing pipe connection")
+	log.Infoln("Pipe.Close: closing pipe connection")
 	err := p.conn.Close() // break the infinite loop
 	if err != nil {
-		glog.Errorln("Pipe.Close: net.Conn not properly closed")
+		log.Errorln("Pipe.Close: net.Conn not properly closed")
 		return err
 	}
 
-	glog.Infoln("Pipe.Close: waiting for pipe to properly close")
+	log.Infoln("Pipe.Close: waiting for pipe to properly close")
 	p.wg.Wait()
 
 	return nil

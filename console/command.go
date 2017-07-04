@@ -3,9 +3,9 @@ package console
 import (
 	"fmt"
 	"github.com/LorisFriedel/go-chat/core"
-	"github.com/golang/glog"
-	"log"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Command func() error
@@ -36,7 +36,7 @@ func registerCmd(name string, factory commandFactory) {
 	m := CommandFactories()
 	_, registered := m[name]
 	if registered {
-		glog.Infof("command factory %s already registered. Replacing.\n", name)
+		log.Infof("command factory %s already registered. Replacing.\n", name)
 	}
 	m[name] = factory
 }
@@ -45,7 +45,7 @@ func NewCommand(client *core.Client, name string, provider IProvider) (Command, 
 	cmdFactory, set := CmdFactory(name)
 	if !set {
 		// Factory has not been registered
-		glog.Errorf("NewCommand: command factory not available for command: %s\n", name)
+		log.Errorf("NewCommand: command factory not available for command: %s\n", name)
 
 		return nil, fmt.Errorf("invalid command name: %s", name)
 	}
