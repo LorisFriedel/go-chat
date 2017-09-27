@@ -11,6 +11,7 @@ import (
 	"github.com/LorisFriedel/go-chat/console"
 	"github.com/LorisFriedel/go-chat/core"
 	rl "github.com/chzyer/readline"
+	log "github.com/sirupsen/logrus"
 )
 
 var prefix = "!"
@@ -19,9 +20,10 @@ var prefix = "!"
 
 func main() {
 	flag.Parse() // glog need that
+	log.SetLevel(log.PanicLevel)
 
 	userName := getUserName()
-	fmt.Printf("Hi %s !\n", userName)
+	fmt.Printf("Hi %s!\n", userName)
 
 	client := core.NewClient(userName)
 	parser := console.NewParser(prefix)
@@ -103,7 +105,7 @@ func makeItem(prefix string, name string, pc ...rl.PrefixCompleterInterface) *rl
 }
 
 func getUserName() string {
-	fmt.Println("Welcome stranger ! What's your name ?")
+	fmt.Println("Welcome stranger! What's your name?")
 	var name string
 	var err error
 
@@ -113,7 +115,7 @@ func getUserName() string {
 		name, err = bufio.NewReader(os.Stdin).ReadString('\n')
 
 		if err != nil || len(strings.TrimSpace(name)) == 0 {
-			fmt.Println("Hmmm, tell me your name again")
+			fmt.Println("Hmmm, tell me your name again?")
 		} else {
 			done = true
 		}

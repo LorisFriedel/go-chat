@@ -5,6 +5,8 @@ import (
 	"net"
 	"sync"
 
+	"time"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,6 +21,8 @@ type Channel struct {
 	port     int
 	password string
 	listener net.Listener
+	msg      chan Message
+	timeout  time.Duration
 }
 
 func NewChannel(address string, port int, passwd string) *Channel {
@@ -29,6 +33,8 @@ func NewChannel(address string, port int, passwd string) *Channel {
 		address:  address,
 		port:     port,
 		password: passwd,
+		msg:      make(chan Message),
+		timeout:  40 * time.Second,
 	}
 }
 
@@ -56,6 +62,7 @@ func (c *Channel) listen() error {
 	c.open = true
 
 	go c.handleJoin()
+	go c.handleMsg()
 
 	return nil
 }
@@ -75,6 +82,12 @@ func (c *Channel) handleJoin() {
 	log.Infoln("Channel.listen: join handling is now inactive")
 }
 
+func (c *Channel) handleMsg() {
+	for c.open {
+		c.Handle(<-c.msg)
+	}
+}
+
 func (c *Channel) Close() (err error) {
 	// End infinite loop
 	c.open = false
@@ -91,6 +104,8 @@ func (c *Channel) Close() (err error) {
 			p.Close()
 		}
 	})
+
+	close(c.msg)
 
 	return
 }
@@ -150,10 +165,16 @@ func (c *Channel) Join(conn net.Conn) {
 	}
 
 	c.registry.Push(id, p)
-	c.Broadcast(*NewMsgText(c.id, fmt.Sprintf("%s joined the channel.", id.Name)))
+	c.msg <- *NewMsgText(c.id, fmt.Sprintf("%s joined the channel.", id.Name))
 	log.Infof("Channel.listen: %s joined the channel (%s)", id.Name, id.Hash)
 
 	go func(id Identity, p *Pipe) {
+		timeoutChan := time.After(c.timeout)
+		go func(c <-chan time.Time) {
+			<-c
+			// TODO DECONNEXION
+		}(timeoutChan)
+
 		// While client is connected
 		for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
 			if err != nil { // TODO handle error in another way ?
@@ -161,12 +182,13 @@ func (c *Channel) Join(conn net.Conn) {
 				continue
 			}
 			log.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
-			c.Handle(msg)
+			// TODO reset timoutchan
+			c.msg <- msg
 		}
 
 		// Here client is disconnected, pipe with him is closed
 		c.registry.Pop(id)
-		c.Broadcast(*NewMsgText(c.id, fmt.Sprintf("%s leaved the channel.", id.Name)))
+		c.msg <- *NewMsgText(c.id, fmt.Sprintf("%s leaved the channel.", id.Name))
 		log.Infof("Channel.listen: %s leaved the channel (%s)", id.Name, id.Hash)
 	}(id, p)
 }

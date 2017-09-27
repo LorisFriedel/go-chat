@@ -233,6 +233,8 @@ func (c *Client) Die() error {
 
 func (c *Client) Forget(name string) error {
 	delete(c.knownChans, name)
+	// TODO Display error if no channel match that name
+	// TODO better handle name collision
 	return nil
 }
 
@@ -259,6 +261,8 @@ func (c *Client) List() error {
 
 func (c *Client) SendMessage(text string) error {
 	log.Infoln("Client.SendMessage: sending message")
+	fmt.Printf("\033[1A")
+	fmt.Printf("\033[K")
 	return c.send(*NewMsgText(c.identity, text))
 }
 
