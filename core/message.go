@@ -15,6 +15,8 @@ const (
 	PASSWORD        tMsg = 5
 	WRONG_PASSWORD  tMsg = 6
 	ERROR           tMsg = 7
+	SYS_CLIENT      tMsg = 8
+	SYS_CHANNEL     tMsg = 9
 )
 
 type Message struct {
@@ -34,6 +36,24 @@ func NewMsgText(sender Identity, text string) *Message {
 	}
 }
 
+func NewMsgSysClient(sender Identity, text string) *Message {
+	return &Message{
+		Text:      text,
+		Type:      SYS_CLIENT,
+		Sender:    sender,
+		Timestamp: time.Now(),
+	}
+}
+
+func NewMsgSysChannel(sender Identity, text string) *Message {
+	return &Message{
+		Text:      text,
+		Type:      SYS_CHANNEL,
+		Sender:    sender,
+		Timestamp: time.Now(),
+	}
+}
+
 func NewMsgPassword(sender Identity, password string) *Message {
 	return &Message{
 		Text:      password,
@@ -42,6 +62,7 @@ func NewMsgPassword(sender Identity, password string) *Message {
 		Timestamp: time.Now(),
 	}
 }
+
 func NewMsg(sender Identity, t tMsg) *Message {
 	return &Message{
 		Type:      t,

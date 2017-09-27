@@ -25,14 +25,14 @@ type Channel struct {
 	timeout  time.Duration
 }
 
-func NewChannel(address string, port int, passwd string) *Channel {
+func NewChannel(address string, port int, password string) *Channel {
 	return &Channel{
 		open:     false,
 		id:       *NewIdentity(fmt.Sprintf("%s:%d", address, port)),
 		registry: NewRegistry(),
 		address:  address,
 		port:     port,
-		password: passwd,
+		password: password,
 		msg:      make(chan Message),
 		timeout:  40 * time.Second,
 	}
@@ -46,7 +46,7 @@ func (c *Channel) Open() error {
 		return err
 	}
 
-	log.Infof("Channel oppened on %s\n", c.listener.Addr().String())
+	log.Infof("Channel opened on %s\n", c.listener.Addr().String())
 	return nil
 }
 
@@ -72,14 +72,14 @@ func (c *Channel) handleJoin() {
 	for c.open {
 		conn, err := c.listener.Accept()
 		if err != nil {
-			log.Errorf("Channel.listen: connection error: %v", err)
+			log.Errorf("Channel.handleJoin: connection error: %v", err)
 			continue
 		}
 		go c.Join(conn)
-		log.Infof("Channel.listen: %v connected to channel", conn.LocalAddr().String())
+		log.Infof("Channel.handleJoin: %v connected to channel", conn.LocalAddr().String())
 	}
 	c.wg.Done()
-	log.Infoln("Channel.listen: join handling is now inactive")
+	log.Infoln("Channel.handleJoin: join handling is now inactive")
 }
 
 func (c *Channel) handleMsg() {
@@ -89,6 +89,8 @@ func (c *Channel) handleMsg() {
 }
 
 func (c *Channel) Close() (err error) {
+	c.broadcastText(fmt.Sprint("Channel closed by host."))
+
 	// End infinite loop
 	c.open = false
 
@@ -142,8 +144,6 @@ func (c *Channel) Join(conn net.Conn) {
 
 	id := msgHello.Sender
 
-	// TODO Message type useless ?
-
 	// If user is already in our registry, he is authenticated no need for password, send welcome back message
 	if c.registry.Exists(id) {
 		p.Write(*NewMsg(c.id, WELCOME_BACK)) // TODO handle write error
@@ -165,32 +165,52 @@ func (c *Channel) Join(conn net.Conn) {
 	}
 
 	c.registry.Push(id, p)
-	c.msg <- *NewMsgText(c.id, fmt.Sprintf("%s joined the channel.", id.Name))
-	log.Infof("Channel.listen: %s joined the channel (%s)", id.Name, id.Hash)
+	c.broadcastText(fmt.Sprintf("%s joined the channel.", id.Name))
+	log.Infof("Channel.Join: %s joined the channel (%s)", id.Name, id.Hash)
 
 	go func(id Identity, p *Pipe) {
-		timeoutChan := time.After(c.timeout)
-		go func(c <-chan time.Time) {
-			<-c
-			// TODO DECONNEXION
-		}(timeoutChan)
+		cancelTimeout := make(chan bool)
+		go c.startTimeout(id, p, cancelTimeout)
 
 		// While client is connected
 		for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
-			if err != nil { // TODO handle error in another way ?
-				// TODO log error
+			// Send "I'm alive" signal
+			cancelTimeout <- true
+
+			if err != nil {
+				log.Errorf("Channel.Join: reading error while receiving client message: %v", err)
 				continue
 			}
-			log.Infof("Channel.listen: received message from: %s (%v)", msg.Sender, msg.Timestamp)
-			// TODO reset timoutchan
+			log.Infof("Channel.Join: received message from: %s (%v)", msg.Sender, msg.Timestamp)
+
+			// Broadcast message
 			c.msg <- msg
 		}
 
 		// Here client is disconnected, pipe with him is closed
 		c.registry.Pop(id)
-		c.msg <- *NewMsgText(c.id, fmt.Sprintf("%s leaved the channel.", id.Name))
-		log.Infof("Channel.listen: %s leaved the channel (%s)", id.Name, id.Hash)
+		c.broadcastText(fmt.Sprintf("%s leaved the channel.", id.Name))
+		log.Infof("Channel.Join: %s leaved the channel (%s)", id.Name, id.Hash)
 	}(id, p)
+}
+
+func (c *Channel) startTimeout(id Identity, p *Pipe, cancelTimeout chan bool) {
+	for p.IsOpen() {
+		select {
+		case <-cancelTimeout:
+			continue
+		case <-time.After(c.timeout):
+			if p.IsOpen() {
+				p.Write(*NewMsgSysChannel(c.id, fmt.Sprintf("..You sleepin', me kickin'")))
+			}
+			p.Close()
+			c.broadcastText(fmt.Sprintf("%s has been inactive for %v and earned a nice and smooth KICK.", id.Name, c.timeout))
+		}
+	}
+}
+
+func (c *Channel) broadcastText(text string) {
+	c.msg <- *NewMsgSysChannel(c.id, text)
 }
 
 // Addr return the ip address of the channel

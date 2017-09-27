@@ -54,11 +54,12 @@ func (c *Client) listen() {
 	p := c.currPipe
 	for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
 		if err != nil {
-			// TODO log error
+			log.Errorf("Client.listen: error while reading message from channel (%v)\n", err)
 			continue
 		}
 		c.notify(msg)
 	}
+	c.notify(*NewMsgSysClient(c.identity, fmt.Sprintf("Disconnected from channel %v", c.currChan)))
 }
 
 func (c *Client) notify(msg Message) {
@@ -149,7 +150,7 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 	}
 
 	go c.listen()
-	c.notify(*NewMsgText(c.identity, fmt.Sprintf("Now connected to %v", kChan)))
+	c.notify(*NewMsgSysClient(c.identity, fmt.Sprintf("Now connected to %v", kChan)))
 
 	return nil
 }
@@ -220,7 +221,7 @@ func (c *Client) Bye() error {
 
 	log.Infoln("Client.Bye: disconnecting from current channel")
 	// We don't tell the channel we are leaving, he will notice himself
-	c.notify(*NewMsgText(c.identity, fmt.Sprintf("Goodbye %v", c.currChan))) // TODO useless (or proper bye notification) ?
+	c.notify(*NewMsgSysClient(c.identity, fmt.Sprintf("Goodbye %v", c.currChan))) // TODO useless (or proper bye notification) ?
 
 	return c.currPipe.Close()
 }
@@ -232,9 +233,14 @@ func (c *Client) Die() error {
 }
 
 func (c *Client) Forget(name string) error {
+	_, set := c.knownChans[name]
+	if !set {
+		log.Errorf("Client.ConnectKnown: client tried to forget unknown channel (%v)\n", name)
+		return fmt.Errorf("unknown channel: %s", name)
+	}
+
 	delete(c.knownChans, name)
-	// TODO Display error if no channel match that name
-	// TODO better handle name collision
+	// TODO Better handle name collision
 	return nil
 }
 
@@ -245,7 +251,7 @@ func (c *Client) Me() error {
 	} else {
 		text = fmt.Sprint("Not connected to any channel :(")
 	}
-	c.notify(*NewMsgText(c.identity, text))
+	c.notify(*NewMsgSysClient(c.identity, text))
 	return nil
 }
 
@@ -261,8 +267,7 @@ func (c *Client) List() error {
 
 func (c *Client) SendMessage(text string) error {
 	log.Infoln("Client.SendMessage: sending message")
-	fmt.Printf("\033[1A")
-	fmt.Printf("\033[K")
+	fmt.Printf("\033[1A\033[K")
 	return c.send(*NewMsgText(c.identity, text))
 }
 

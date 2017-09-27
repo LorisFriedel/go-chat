@@ -58,10 +58,8 @@ Then, John join the channel created by Bob :
 ## Build
 
 To build Go-chat executable, simply run the 'build.sh' script.
-You need
-+ go installed
-+ Docker up and running
-+ the tool 'godep' from Google
+You need Go (Golang) installed OR Docker installed and running.
+However, even without Go installed, you need the GOPATH environment variable to be set.
 
 ## Build Docker image
 

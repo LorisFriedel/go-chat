@@ -64,8 +64,15 @@ func main() {
 
 		name := console.MakePromptPrefix(msg.Sender.Name, color)
 		time := console.MakePromptPrefix(msg.Timestamp.Format("15:04:05"), console.LIGHT_YELLOW)
-		fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
-		rd.Refresh() // TODO fix display issue
+		switch msg.Type {
+		case core.TEXT:
+			fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
+		case core.SYS_CHANNEL:
+			fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
+		case core.SYS_CLIENT:
+			fmt.Printf("(%s) %s\n", time, msg.Text)
+		}
+		rd.Refresh()
 	})
 
 	for {
