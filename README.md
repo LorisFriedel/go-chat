@@ -64,10 +64,17 @@ However, even without Go installed, you need the GOPATH environment variable to 
 ## Build Docker image
 
 To build the Go-chat Docker image, run the script 'img_build.sh'.
-Warning: Go-chat Docker image is not working due to input reading issues.
-Please feel free to fix it and send a pull request or wait until I fix it.
 
 ## Run
 
 To run Go-chat, execute the 'run.sh' script.
 Requirements here are the same as for the build section given that the exe has to be built if it's the first time you want to run Go-chat.
+
+## Run with Docker
+
+To run Go-chat Docker image, execute :
+
+~ sudo docker run -it lorisfriedel/go-chat
+
+
+
