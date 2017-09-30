@@ -29,13 +29,22 @@ func newCmdNew(client *core.Client, provider IProvider) (Command, error) {
 		return nil, err
 	}
 
-	passwd, err := provider.GetString()
+	password, err := provider.GetString()
 	if err != nil {
-		log.Errorln("newCmdNew: can't get 'passwd' args for instantiating command")
+		log.Errorln("newCmdNew: can't get 'password' args for instantiating command")
 		return nil, err
 	}
 
+	var timeout int
+	if provider.HasMore() {
+		timeout, err = provider.GetInt()
+		if err != nil {
+			log.Errorln("newCmdNew: can't get 'timeout' args for instantiating command")
+			return nil, err
+		}
+	}
+
 	return func() error {
-		return client.CreateChan(name, address, port, passwd)
+		return client.CreateConnectChan(name, address, port, password, timeout)
 	}, nil
 }

@@ -23,7 +23,7 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 	// Parse input
 	provider, err := h.parser.Parse(input)
 	if err != nil {
-		log.Errorf("Handler.Handle: error while parsing input: %s\n", input)
+		log.Errorf("Handler.handle: error while parsing input: %s\n", input)
 		return err
 	}
 
@@ -33,7 +33,7 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 	// Create executable command
 	cmd, err := NewCommand(client, cmdName, provider)
 	if err != nil {
-		log.Errorf("Handler.Handle: error while instanciating command: %s\n", cmdName)
+		log.Errorf("Handler.handle: error while instanciating command: %s\n", cmdName)
 		return err
 	}
 
@@ -46,7 +46,7 @@ func (h *CmdHandler) Handle(client *core.Client, input string) error {
 
 	if err != nil {
 		// TODO special case for suicide error, that is not really an error
-		log.Errorf("Handler.Handle: error while executing command: %s\n", cmdName)
+		log.Errorf("Handler.handle: error while executing command: %s\n", cmdName)
 		return err
 	}
 

@@ -48,11 +48,17 @@ func (c *Client) AddListener(listener MsgListener) {
 	c.listeners = append(c.listeners, listener)
 }
 
-// TODO function DelListener ?
+// TODO function DeleteListener ?
 
 func (c *Client) listen() {
+	defer func() {
+		c.currChan = nil
+		c.currPipe = nil
+	}()
+
 	p := c.currPipe
 	for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
+		// Synchronisation here, a client can't receive more than one message at once and handle them non-concurrently84
 		if err != nil {
 			log.Errorf("Client.listen: error while reading message from channel (%v)\n", err)
 			continue
@@ -68,8 +74,25 @@ func (c *Client) notify(msg Message) {
 	}
 }
 
-func (c *Client) CreateChan(name, address string, port int, password string) error {
-	channel := NewChannel(address, port, password)
+func (c *Client) CreateConnectChan(name, address string, port int, password string, timeout int) error {
+	err := c.CreateChan(name, address, port, password, timeout)
+	if err != nil {
+		log.Errorf("Client.CreateConnectChan: channel created but won't open (%v,%v,%v)\n", name, address, port)
+		return err
+	}
+
+	err = c.Connect(name, address, port, password)
+	if err != nil {
+		log.Errorf("Client.CreateConnectChan: client created a channel but can't connect to it (%v)\n", err)
+		return err
+	}
+
+	log.Infoln("Client.CreateConnectChan: successfully created channel, client is now connected to it")
+	return nil
+}
+
+func (c *Client) CreateChan(name, address string, port int, password string, timeout int) error {
+	channel := NewChannel(address, port, password, timeout)
 
 	if ch, ok := c.ownChans[name]; ok {
 		err := ch.Close()
@@ -87,13 +110,7 @@ func (c *Client) CreateChan(name, address string, port int, password string) err
 
 	c.ownChans[name] = channel
 
-	err = c.Connect(name, channel.address, channel.port, password)
-	if err != nil {
-		log.Errorf("Client.CreateChan: client created a channel but can't connect to it (%v)\n", err)
-		return err
-	}
-
-	log.Infoln("Client.CreateChan: successfully created channel, client is now connected to it")
+	log.Infoln("Client.CreateChan: successfully created channel")
 	return nil
 }
 
@@ -186,6 +203,7 @@ func (c *Client) ListOwnChan() func(string) []string {
 }
 
 func (c *Client) CloseChan(name string) error {
+	// TODO bugfix : sometime, the channel owner cannot close the channel
 	var ch *Channel
 	var set bool
 
@@ -210,11 +228,6 @@ func (c *Client) CloseChan(name string) error {
 }
 
 func (c *Client) Bye() error {
-	defer func() {
-		c.currChan = nil
-		c.currPipe = nil
-	}()
-
 	if c.currPipe == nil || !c.currPipe.IsOpen() {
 		return errors.New("not connected to any channel")
 	}

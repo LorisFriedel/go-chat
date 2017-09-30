@@ -1,5 +1,14 @@
 # Go-chat
-Simple chat application written in Go.
+
+![Go chat logo](./images/go-chat.png)
+
+Another simple IRC chat application written in Go.
+
+And, like the others, it is unique.
+
+But why it is unique Jean-Pierre?
+
+Because it support command line input, environment variable input and in-app input, because you can chat without running the client at all, because you can run in full server mode in case you wanna create 147894816545 channels of pure awesomeness, because you can build and run it with Docker like you've always wanted to do, and above all because ITS LOGO ROCKS.
 
 ## Available command:
 If no command is specified, the written text is considered as a message to be sent on the current channel.
@@ -28,32 +37,57 @@ Coming soon :
 And channel auto-save, to let you reconnect to known channels even after exiting Go-chat!
 
 ## Usage example
-Bob start the chat and create a new channel :
+
+### Standard method
+
+Bob start the Go-chat program and create a new channel :
 
 ~ ./run.sh
 
 ~ Welcome stranger ! What's your name ?
 
-~ > Bob
+~ > McFly
 
-~ Hi Bob!
+~ Hi McFly!
 
-~ !new MyAwesomeChannel 127.0.0.1 8080 myawesomepassword
+~ !new MyAwesomeChannel 104.20.90.7 8080 myAwesomePassword
 
-~ (16:19:55) Bob: Now connected to MyAwesomeChannel (127.0.0.1:8080)
+~ (16:19:55) McFly: Now connected to MyAwesomeChannel (104.20.90.7:8080)
 
-~ > (16:19:55) 127.0.0.1:8080: Bob joined the channel.
+~ > (16:19:55) 104.20.90.7:8080: McFly joined the channel.
 
 
-Then, John join the channel created by Bob :
+Then, Carlito join the channel created by McFly :
 
-~ > !go MyAwesomeChannel 127.0.0.1 8080 myawesomepassword
+~ > !go MyAwesomeChannel 104.20.90.7 8080 myAwesomePassword
 
-~ (16:20:10) John: Now connected to chan (127.0.0.1:8080)
+~ (16:20:10) Carlito: Now connected to chan (104.20.90.7:8080)
 
-~ > (16:20:10) 127.0.0.1:8080: John joined the channel.
+~ > (16:20:10) 104.20.90.7:8080: Carlito joined the channel.
 
-~ > (16:20:13) Bob: Hello John! How are you?
+~ > (16:20:13) McFly: Hello John! How are you?
+
+~ > (16:20:18) Carlito: WOW AMAZING THIS IS WORKING! SO SMOOTH!
+
+And so on..
+
+### Barbarian method
+
+If Alicia want to join the chat but can't download the client for mysterious reasons, she can simply do as follow:
+
+~ nc 104.20.90.7 8080
+
+~ Welcome stranger ! What's your name ?
+
+~ Alicia
+
+~ Hi Alicia!
+
+~ (16:21:32) Alicia: Now connected to chan (104.20.90.7:8080)
+
+~ > (16:21:32) 104.20.90.7:8080: Alicia joined the channel.
+
+And from here she can use Go-chat like she had the executable client. M.A.G.I.C.
 
 ## Build
 
@@ -76,5 +110,34 @@ To run Go-chat Docker image, execute :
 
 ~ sudo docker run -it lorisfriedel/go-chat
 
+## Execute command at start
 
+If you want to create a new channel when running Go-chat without using in-app command, or join an existing channel, well.. you can!
+In fact you can do whatever you want and however you want, like :
+ + Docker + environment variable
+ + Docker + command line arguments
+ + Docker + in-app command
+ + Docker-compose + environment variable + command line arguments
+ + Run script + command line arguments
+ + Run script + environment variable
+ + Run script + in-app command
+ + Executable + command line arguments
+ + Executable + environment variable
+ + Executable + in-app command
+ + Eat a cookie and connect using the good old netcat without the intention to execute any command because you're a BADASS. Now that's BADASS!
+ + This list is too long but obviously you don't care because, like the old chinese proverb sayin': tl,dr.
 
+## Available options
+This is a list of all available options that can be used to customize the way you run your Go-chat. For command line arguments or environment variables, the input format is the same.
+ + -username (CLI) | GO_USERNAME (env var)
+    + Username displayed when you send message on a channel (empty string by default, asked when starting the chat)
+ + -new (CLI) | GO_NEW (env var)
+    + Channels to be created on startup (none by default), separated by semi-colons and formatted as follow (timeout in second): \"(name,ip,port,passwd\[,timeout\])\"
+    + Example: ~ ./go-chat -new \"(channel1,127.0.0.1,8080,myPassword,40);(channel2,192.21.58.11,8090,qwerty123)\"
+ + -servermode (CLI) | GO_SERVER_MODE (env var)
+    + If specified, Go-chat will only create new channels. Username argument will be ignored. (false by default)
+ + -go (CLI) | GO_GO (env var)
+    + Channel to be joined on startup, formatted as follow : \"(name,ip,port,passwd)\"
+    + Example: ~ ./go-chat -go \"(channel1,127.0.0.1,8080,myPassword)\"
+ + -loglevel (CLI) | GO_LOG_LEVEL (env var)
+    + Define log level. Possible values : panic,fatal,error,warn,info,debug

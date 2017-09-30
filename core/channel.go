@@ -10,7 +10,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// TODO interface ?
+type IChannel interface {
+	Open() error
+	Close() error
+	Addr() net.Addr
+}
+
+var DefaultTimeout = 0
 
 type Channel struct {
 	open     bool
@@ -25,7 +31,7 @@ type Channel struct {
 	timeout  time.Duration
 }
 
-func NewChannel(address string, port int, password string) *Channel {
+func NewChannel(address string, port int, password string, timeout int) *Channel {
 	return &Channel{
 		open:     false,
 		id:       *NewIdentity(fmt.Sprintf("%s:%d", address, port)),
@@ -34,7 +40,7 @@ func NewChannel(address string, port int, password string) *Channel {
 		port:     port,
 		password: password,
 		msg:      make(chan Message),
-		timeout:  40 * time.Second,
+		timeout:  time.Duration(timeout) * time.Second,
 	}
 }
 
@@ -84,12 +90,12 @@ func (c *Channel) handleJoin() {
 
 func (c *Channel) handleMsg() {
 	for c.open {
-		c.Handle(<-c.msg)
+		c.handle(<-c.msg)
 	}
 }
 
 func (c *Channel) Close() (err error) {
-	c.broadcastText(fmt.Sprint("Channel closed by host."))
+	c.broadcastText("Channel closed by host.")
 
 	// End infinite loop
 	c.open = false
@@ -113,14 +119,14 @@ func (c *Channel) Close() (err error) {
 }
 
 // Handle is used to handle message received from connected client
-func (c *Channel) Handle(msg Message) {
+func (c *Channel) handle(msg Message) {
 	// TODO Handle regarding message type ?
-	c.Broadcast(msg)
+	c.broadcast(msg)
 }
 
 // Broadcast send the given message to every client connected to the channel
-func (c *Channel) Broadcast(msg Message) {
-	log.Infof("Channel.Broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
+func (c *Channel) broadcast(msg Message) {
+	log.Infof("Channel.broadcast: broadcasting message from: %s (%v)", msg.Sender, msg.Timestamp)
 
 	c.registry.Foreach(func(id Identity, p *Pipe) {
 		if p.IsOpen() {
@@ -169,13 +175,18 @@ func (c *Channel) Join(conn net.Conn) {
 	log.Infof("Channel.Join: %s joined the channel (%s)", id.Name, id.Hash)
 
 	go func(id Identity, p *Pipe) {
-		cancelTimeout := make(chan bool)
-		go c.startTimeout(id, p, cancelTimeout)
+		var cancelTimeout chan bool
+		if c.timeout > 0 {
+			cancelTimeout = make(chan bool)
+			go c.startTimeout(id, p, cancelTimeout)
+		}
 
 		// While client is connected
 		for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
-			// Send "I'm alive" signal
-			cancelTimeout <- true
+			if c.timeout != 0 {
+				// Send "I'm alive" signal
+				cancelTimeout <- true
+			}
 
 			if err != nil {
 				log.Errorf("Channel.Join: reading error while receiving client message: %v", err)
@@ -185,6 +196,10 @@ func (c *Channel) Join(conn net.Conn) {
 
 			// Broadcast message
 			c.msg <- msg
+		}
+
+		if !c.open {
+			return
 		}
 
 		// Here client is disconnected, pipe with him is closed
