@@ -10,7 +10,7 @@ func init() {
 	registerCmd("go", newCmdGo)
 }
 
-func newCmdGo(client *core.Client, provider IProvider) (Command, error) {
+func newCmdGo(client core.IClient, provider IProvider) (Command, error) {
 	name, err := provider.GetString()
 	if err != nil {
 		log.Errorln("newCmdGo: can't get 'name' args for instantiating command")
@@ -30,10 +30,13 @@ func newCmdGo(client *core.Client, provider IProvider) (Command, error) {
 			return nil, err
 		}
 
-		password, err := provider.GetString()
-		if err != nil {
-			log.Errorln("newCmdGo: can't get 'password' args for instantiating command")
-			return nil, err
+		var password string
+		if provider.HasMore() {
+			password, err = provider.GetString()
+			if err != nil {
+				log.Errorln("newCmdGo: can't get 'password' args for instantiating command")
+				return nil, err
+			}
 		}
 
 		return func() error {

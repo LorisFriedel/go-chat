@@ -1,8 +1,8 @@
 # Go-chat
 
-![Go chat logo](./images/go-chat.png)
+![Go chat logo](./images/go-chat-small.png)
 
-Another simple IRC chat application written in Go.
+Another simple IRC application written in Go.
 
 And, like the others, it is unique.
 
@@ -12,7 +12,7 @@ Because it support command line input, environment variable input and in-app inp
 
 ## Available command:
 If no command is specified, the written text is considered as a message to be sent on the current channel.
- + !go name \[address port password\]
+ + !go name \[address port \[password\]\]
     + Connect to a channel. If address nor port are mentioned, try to connect to a known channel. If the connection is successful, the channel is added to known channels. Be careful, known channels can be forgotten if the given name is an already known channel
  + !bye
     + Disconnect from current channel
@@ -20,7 +20,7 @@ If no command is specified, the written text is considered as a message to be se
     + Quit chat
  + !list
     + List all known channels
- + !new name address port password
+ + !new name address port \[password\]
     + Create a new channel with given parameters. Client is automatically connected to it when created
  + !forget name
     + Forget a known channel
@@ -128,16 +128,16 @@ In fact you can do whatever you want and however you want, like :
  + This list is too long but obviously you don't care because, like the old chinese proverb sayin': tl,dr.
 
 ## Available options
-This is a list of all available options that can be used to customize the way you run your Go-chat. For command line arguments or environment variables, the input format is the same.
- + -username (CLI) | GO_USERNAME (env var)
+This is a list of all available options that can be used to customize the way you run your Go-chat. For command line arguments (to pass when running Go-chat, with or without the script run.sh) or environment variables, the input format is the same. However, the command line arguments will always have priority over environments variables.
+ + -username (cli args) | GO_USERNAME (ENV VAR)
     + Username displayed when you send message on a channel (empty string by default, asked when starting the chat)
- + -new (CLI) | GO_NEW (env var)
+ + -new (cli args) | GO_NEW (ENV VAR)
     + Channels to be created on startup (none by default), separated by semi-colons and formatted as follow (timeout in second): \"(name,ip,port,passwd\[,timeout\])\"
     + Example: ~ ./go-chat -new \"(channel1,127.0.0.1,8080,myPassword,40);(channel2,192.21.58.11,8090,qwerty123)\"
- + -servermode (CLI) | GO_SERVER_MODE (env var)
-    + If specified, Go-chat will only create new channels. Username argument will be ignored. (false by default)
- + -go (CLI) | GO_GO (env var)
+ + -servermode (cli args) | GO_SERVER_MODE (ENV VAR)
+    + If specified, Go-chat will only create new channels. Username and Go arguments will be ignored. (false by default)
+ + -go (cli args) | GO_GO (ENV VAR)
     + Channel to be joined on startup, formatted as follow : \"(name,ip,port,passwd)\"
     + Example: ~ ./go-chat -go \"(channel1,127.0.0.1,8080,myPassword)\"
- + -loglevel (CLI) | GO_LOG_LEVEL (env var)
+ + -loglevel (cli args) | GO_LOG_LEVEL (ENV VAR)
     + Define log level. Possible values : panic,fatal,error,warn,info,debug

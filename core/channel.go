@@ -16,8 +16,6 @@ type IChannel interface {
 	Addr() net.Addr
 }
 
-var DefaultTimeout = 0
-
 type Channel struct {
 	open     bool
 	wg       sync.WaitGroup
@@ -151,9 +149,9 @@ func (c *Channel) Join(conn net.Conn) {
 	id := msgHello.Sender
 
 	// If user is already in our registry, he is authenticated no need for password, send welcome back message
-	if c.registry.Exists(id) {
+	if c.registry.Exists(id) { // TODO useless because every disconnected client is removed from the registry
 		p.Write(*NewMsg(c.id, WELCOME_BACK)) // TODO handle write error
-	} else { // If not, ask for password
+	} else if c.password != "" { // If not, ask for password if there is one
 		p.Write(*NewMsg(c.id, PASSWORD_PLEASE)) // TODO handle write error
 		msgPassword, err := p.Read()
 		if err != nil || msgPassword.Type != PASSWORD {
@@ -168,60 +166,46 @@ func (c *Channel) Join(conn net.Conn) {
 			p.Write(*NewMsg(c.id, WRONG_PASSWORD)) // TODO handle write error
 			return
 		}
+	} else {
+		p.Write(*NewMsg(c.id, WELCOME)) // TODO handle write error
 	}
 
 	c.registry.Push(id, p)
 	c.broadcastText(fmt.Sprintf("%s joined the channel.", id.Name))
 	log.Infof("Channel.Join: %s joined the channel (%s)", id.Name, id.Hash)
 
-	go func(id Identity, p *Pipe) {
-		var cancelTimeout chan bool
-		if c.timeout > 0 {
-			cancelTimeout = make(chan bool)
-			go c.startTimeout(id, p, cancelTimeout)
-		}
-
-		// While client is connected
-		for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
-			if c.timeout != 0 {
-				// Send "I'm alive" signal
-				cancelTimeout <- true
-			}
-
-			if err != nil {
-				log.Errorf("Channel.Join: reading error while receiving client message: %v", err)
-				continue
-			}
-			log.Infof("Channel.Join: received message from: %s (%v)", msg.Sender, msg.Timestamp)
-
-			// Broadcast message
-			c.msg <- msg
-		}
-
-		if !c.open {
-			return
-		}
-
-		// Here client is disconnected, pipe with him is closed
-		c.registry.Pop(id)
-		c.broadcastText(fmt.Sprintf("%s leaved the channel.", id.Name))
-		log.Infof("Channel.Join: %s leaved the channel (%s)", id.Name, id.Hash)
-	}(id, p)
-}
-
-func (c *Channel) startTimeout(id Identity, p *Pipe, cancelTimeout chan bool) {
-	for p.IsOpen() {
-		select {
-		case <-cancelTimeout:
-			continue
-		case <-time.After(c.timeout):
+	// While client is connected
+	for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
+		if c.timeout > 0 && err.(net.Error).Timeout() {
 			if p.IsOpen() {
 				p.Write(*NewMsgSysChannel(c.id, fmt.Sprintf("..You sleepin', me kickin'")))
 			}
 			p.Close()
 			c.broadcastText(fmt.Sprintf("%s has been inactive for %v and earned a nice and smooth KICK.", id.Name, c.timeout))
 		}
+
+		if err != nil {
+			log.Errorf("Channel.Join: reading error while receiving client message: %v", err)
+			continue
+		}
+		log.Infof("Channel.Join: received message from: %s (%v)", msg.Sender, msg.Timestamp)
+
+		// Broadcast message
+		c.msg <- msg
+
+		if c.timeout > 0 {
+			p.conn.SetReadDeadline(time.Now().Add(c.timeout * time.Second))
+		}
 	}
+
+	if !c.open {
+		return
+	}
+
+	// Here client is disconnected, pipe with him is closed
+	c.registry.Pop(id)
+	c.broadcastText(fmt.Sprintf("%s leaved the channel.", id.Name))
+	log.Infof("Channel.Join: %s leaved the channel (%s)", id.Name, id.Hash)
 }
 
 func (c *Channel) broadcastText(text string) {

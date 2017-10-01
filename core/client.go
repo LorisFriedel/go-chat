@@ -18,7 +18,23 @@ var (
 
 type MsgListener func(Message)
 
-// TODO interface ?
+type IClient interface {
+	Identity() Identity
+	AddListener(listener MsgListener)
+	CreateConnectChan(name, address string, port int, password string, timeout int) error
+	CreateChan(name, address string, port int, password string, timeout int) error
+	Connect(name, address string, port int, password string) error
+	ConnectKnown(name string) error
+	ListKnownChan() func(string) []string
+	ListOwnChan() func(string) []string
+	CloseChan(name string) error
+	Bye() error
+	Die() error
+	Forget(name string) error
+	Me() error
+	List() error
+	SendMessage(text string) error
+}
 
 type Client struct {
 	identity   Identity
@@ -81,13 +97,15 @@ func (c *Client) CreateConnectChan(name, address string, port int, password stri
 		return err
 	}
 
-	err = c.Connect(name, address, port, password)
-	if err != nil {
-		log.Errorf("Client.CreateConnectChan: client created a channel but can't connect to it (%v)\n", err)
-		return err
+	if c.identity.Name != "" {
+		err = c.Connect(name, address, port, password)
+		if err != nil {
+			log.Errorf("Client.CreateConnectChan: client created a channel but can't connect to it (%v)\n", err)
+			return err
+		}
+		log.Infoln("Client.CreateConnectChan: successfully created channel, client is now connected to it")
 	}
 
-	log.Infoln("Client.CreateConnectChan: successfully created channel, client is now connected to it")
 	return nil
 }
 
@@ -115,10 +133,12 @@ func (c *Client) CreateChan(name, address string, port int, password string, tim
 }
 
 func (c *Client) Connect(name, address string, port int, password string) error {
+	// Close previous connection
 	if c.currPipe != nil && c.currPipe.IsOpen() {
 		c.currPipe.Close()
 	}
 
+	// Connect to server address
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", address, port))
 	if err != nil {
 		log.Errorf("Client.Connect: connection failure on (%s:%d)\n", address, port)
@@ -164,6 +184,8 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 			}
 		}
 		// Authentication OK
+	case WELCOME:
+		// No password, Authentication OK
 	}
 
 	go c.listen()

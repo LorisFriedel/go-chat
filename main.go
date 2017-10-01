@@ -1,16 +1,18 @@
 package main
 
 import (
-	"bufio"
 	"flag"
-	"fmt"
-	"io"
 	"os"
 	"strings"
 
 	"errors"
 	"regexp"
 	"strconv"
+
+	"fmt"
+	"io"
+
+	"bufio"
 
 	"github.com/LorisFriedel/go-chat/console"
 	"github.com/LorisFriedel/go-chat/core"
@@ -44,48 +46,73 @@ var argLogLevel string
 
 func init() {
 	flag.StringVar(&argUserName, "username", "", "Username displayed when you send message on a channel.")
-	flag.StringVar(&argNewChannels, "new", "", "Channels to be created on startup, separated by semi-colons and formatted as follow : \"(name,ip,port,passwd[,timeout])\"\n e.g. -new \"(channel1,127.0.0.1,8080,PaSsWoRd1324,40);(channel2,192.21.58.11,8090,qwerty123)\"")
+	flag.StringVar(&argNewChannels, "new", "", "Channels to be created on startup, separated by semi-colons and formatted as follow : \"(name,ip,port,passwd[,timeout])\"\n e.g. -new \"(channel1,127.0.0.1,8080,myPassword,40);(channel2,192.21.58.11,8090,qwerty123)\"")
 	flag.BoolVar(&argServerMode, "servermode", false, "If specified, Go-chat will only create new channels. Username argument will be ignored.")
-	flag.StringVar(&argChanToGo, "go", "", "Channel to be joined on startup, formatted as follow : \"(name,ip,port,passwd)\"\n e.g. -go \"(channel1,127.0.0.1,8080,PaSsWoRd1324)\"")
+	flag.StringVar(&argChanToGo, "go", "", "Channel to be joined on startup, formatted as follow : \"(name,ip,port,passwd)\"\n e.g. -go \"(channel1,127.0.0.1,8080,myPassword)\"")
 	flag.StringVar(&argLogLevel, "loglevel", "", "Define log level. Possible values : panic,fatal,error,warn,info,debug")
 }
 
+/*
+PARSE INPUT (ENV VAR and CLI)
+START corresponding mode
+*/
+
 func main() {
+	// Parse arguments from everywhere
 	flag.Parse()
 	argsCli := parseCli()
 	argsEnvVar := parsEnvVar()
 	args := merge(argsEnvVar, argsCli)
 
-	setLogLevel(args.logLevel)
-
-	// TODO isoler le client pour qu'un channel puisse lancer un client et qu'une personne se connectant en netcat
-	// TODO puisse l'utiliser comme client distant
-	// TODO proprifier tout ce bordel
-
+	// Start the chat
 	if args.serverMode {
 		initServerMode(args)
 	} else {
-		initClientMode(args)
+		initStandardMode(args)
 	}
 }
 
-func setLogLevel(logLevelStr string) {
-	var logLevel log.Level
-	var err error
+func initServerMode(args *Arguments) {
+	setLogLevel(args.logLevel, log.DebugLevel)
 
-	if logLevelStr == "" {
-		logLevel = log.PanicLevel
-	} else {
-		logLevel, err = log.ParseLevel(logLevelStr)
-		if err != nil {
-			log.Warnln(err)
-		}
+	args.userName = ""
+	fmt.Printf("All system operational.\n")
+
+	server := core.NewClient(args.userName)
+	parser := console.NewParser(prefix)
+	handler := console.NewHandler(parser)
+
+	completer := rl.NewPrefixCompleter(
+		console.MakeItem(prefix, "die"),
+		// makeItem(prefix, "help"), // TODO + command name for help of it OR empty for general help (DYNAMIC)
+		console.MakeItem(prefix, "list"),
+		// makeItem(prefix, "status"), // TODO status of the current channel (error if you are not the owner?)
+		console.MakeItem(prefix, "new"),
+		console.MakeItem(prefix, "close", rl.PcItemDynamic(server.ListOwnChan())),
+	)
+
+	rd, err := console.ReaderBuilder.
+		Prefix("# ").PrefixColor(console.LIGHT_RED).
+		HistoryFile("/tmp/go-chat").HistorySearchFold(true).
+		InterruptCommand("^C").Completer(completer).Build()
+
+	if err != nil {
+		log.Panic(err)
 	}
+	defer rd.Close()
 
-	log.SetLevel(logLevel)
+	// Post boot actions -----------------------------------------------------
+	for _, c := range args.newChannels {
+		server.CreateChan(c.name, c.address, c.port, c.password, c.timeout)
+	}
+	// END Post boot actions -------------------------------------------------
+
+	cliLoop(server, rd, handler)
 }
 
-func initClientMode(args *Arguments) {
+func initStandardMode(args *Arguments) {
+	setLogLevel(args.logLevel, log.PanicLevel)
+
 	if args.userName == "" {
 		args.userName = getUserName()
 	}
@@ -97,29 +124,25 @@ func initClientMode(args *Arguments) {
 	handler := console.NewHandler(parser)
 
 	completer := rl.NewPrefixCompleter(
-		makeItem(prefix, "go", rl.PcItemDynamic(client.ListKnownChan())),
-		makeItem(prefix, "bye"),
-		makeItem(prefix, "die"),
+		console.MakeItem(prefix, "go", rl.PcItemDynamic(client.ListKnownChan())),
+		console.MakeItem(prefix, "bye"),
+		console.MakeItem(prefix, "die"),
 		// makeItem(prefix, "help"), // TODO + command name for help of it OR empty for general help (DYNAMIC)
-		makeItem(prefix, "list"),
+		console.MakeItem(prefix, "list"),
 		// makeItem(prefix, "status"), // TODO status of the current channel (error if you are not the owner)
-		makeItem(prefix, "new"),
-		makeItem(prefix, "forget", rl.PcItemDynamic(client.ListKnownChan())),
-		makeItem(prefix, "close", rl.PcItemDynamic(client.ListOwnChan())),
-		makeItem(prefix, "me"),
+		console.MakeItem(prefix, "new"),
+		console.MakeItem(prefix, "forget", rl.PcItemDynamic(client.ListKnownChan())),
+		console.MakeItem(prefix, "close", rl.PcItemDynamic(client.ListOwnChan())),
+		console.MakeItem(prefix, "me"),
 	)
 
 	rd, err := console.ReaderBuilder.
-		Prefix("> ").
-		PrefixColor(console.LIGHT_CYAN).
-		HistoryFile("/tmp/go-chat").
-		Completer(completer).
-		InterruptCommand("^C").
-		HistorySearchFold(true).
-		Build()
+		Prefix("> ").PrefixColor(console.LIGHT_CYAN).
+		HistoryFile("/tmp/go-chat").HistorySearchFold(true).
+		InterruptCommand("^C").Completer(completer).Build()
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	defer rd.Close()
 
@@ -146,6 +169,7 @@ func initClientMode(args *Arguments) {
 		rd.Refresh()
 	})
 
+	// Post boot actions -----------------------------------------------------
 	for _, c := range args.newChannels {
 		client.CreateChan(c.name, c.address, c.port, c.password, c.timeout)
 	}
@@ -153,7 +177,32 @@ func initClientMode(args *Arguments) {
 	if c := args.chanToGo; c != nil {
 		client.Connect(c.name, c.address, c.port, c.password)
 	}
+	// END Post boot actions -------------------------------------------------
 
+	cliLoop(client, rd, handler)
+}
+
+func getUserName() string {
+	fmt.Println("Welcome stranger! What's your name?")
+	var name string
+	var err error
+
+	done := false
+	for !done {
+		fmt.Print("> ")
+		name, err = bufio.NewReader(os.Stdin).ReadString('\n')
+
+		if err != nil || len(strings.TrimSpace(name)) == 0 {
+			fmt.Println("Hmmm, tell me your name again?")
+		} else {
+			done = true
+		}
+	}
+
+	return strings.TrimSpace(name)
+}
+
+func cliLoop(client core.IClient, rd *rl.Instance, handler console.IHandler) {
 	for {
 		// Read input
 		line, err := rd.Readline()
@@ -178,7 +227,7 @@ func initClientMode(args *Arguments) {
 		err = handler.Handle(client, line)
 		if err != nil {
 			if err == core.ClientSuicide {
-				fmt.Println("Bye bye !")
+				fmt.Println("Go-chat is now gonna die, you murderer!")
 				break
 			}
 			fmt.Printf("Error: %v\n", err)
@@ -186,16 +235,25 @@ func initClientMode(args *Arguments) {
 	}
 }
 
-func initServerMode(args *Arguments) {
-	args.userName = "Go-chat"
-	fmt.Printf("All system operational.\n")
+func setLogLevel(logLevelStr string, defaultLevel log.Level) {
+	var logLevel log.Level
+	var err error
 
-	server := core.NewClient(args.userName)
-
-	for _, c := range args.newChannels {
-		server.CreateChan(c.name, c.address, c.port, c.password, c.timeout)
+	if logLevelStr == "" {
+		logLevel = defaultLevel
+	} else {
+		logLevel, err = log.ParseLevel(logLevelStr)
+		if err != nil {
+			log.Warnln(err)
+		}
 	}
+
+	log.SetLevel(logLevel)
 }
+
+///////////////////////////////////////////
+//////////////// Parsing //////////////////
+///////////////////////////////////////////
 
 func parsEnvVar() *Arguments {
 	return &Arguments{
@@ -207,13 +265,6 @@ func parsEnvVar() *Arguments {
 	}
 }
 
-func parseBool(str string) bool {
-	if b, err := strconv.ParseBool(str); err != nil {
-		return b
-	}
-	return false
-}
-
 func parseCli() *Arguments {
 	return &Arguments{
 		userName:    argUserName,
@@ -222,6 +273,28 @@ func parseCli() *Arguments {
 		chanToGo:    parseChannel(argChanToGo),
 		logLevel:    argLogLevel,
 	}
+}
+
+func merge(argsList ...*Arguments) *Arguments {
+	result := &Arguments{}
+	for _, args := range argsList {
+		if args.userName != "" {
+			result.userName = args.userName
+		}
+
+		result.newChannels = append(result.newChannels, args.newChannels...)
+
+		result.serverMode = args.serverMode
+
+		if args.chanToGo != nil {
+			result.chanToGo = args.chanToGo
+		}
+
+		if args.logLevel != "" {
+			result.logLevel = args.logLevel
+		}
+	}
+	return result
 }
 
 func parseChannels(chanArgsStrList string) []*ChanArgs {
@@ -276,48 +349,9 @@ func parseChannel(chanArgsStr string) *ChanArgs {
 	return result
 }
 
-func merge(argsList ...*Arguments) *Arguments {
-	result := &Arguments{}
-	for _, args := range argsList {
-		if args.userName != "" {
-			result.userName = args.userName
-		}
-
-		result.newChannels = append(result.newChannels, args.newChannels...)
-
-		result.serverMode = args.serverMode
-
-		if args.chanToGo != nil {
-			result.chanToGo = args.chanToGo
-		}
-
-		if args.logLevel != "" {
-			result.logLevel = args.logLevel
-		}
+func parseBool(str string) bool {
+	if b, err := strconv.ParseBool(str); err != nil {
+		return b
 	}
-	return result
-}
-
-func makeItem(prefix string, name string, pc ...rl.PrefixCompleterInterface) *rl.PrefixCompleter {
-	return rl.PcItem(prefix+name, pc...)
-}
-
-func getUserName() string {
-	fmt.Println("Welcome stranger! What's your name?")
-	var name string
-	var err error
-
-	done := false
-	for !done {
-		fmt.Print("> ")
-		name, err = bufio.NewReader(os.Stdin).ReadString('\n')
-
-		if err != nil || len(strings.TrimSpace(name)) == 0 {
-			fmt.Println("Hmmm, tell me your name again?")
-		} else {
-			done = true
-		}
-	}
-
-	return strings.TrimSpace(name)
+	return false
 }

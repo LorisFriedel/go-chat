@@ -10,7 +10,7 @@ func init() {
 	registerCmd("message", newCmdMessage)
 }
 
-func newCmdMessage(client *core.Client, provider IProvider) (Command, error) {
+func newCmdMessage(client core.IClient, provider IProvider) (Command, error) {
 	text, err := provider.GetString()
 	if err != nil {
 		log.Errorln("newCmdMessage: can't get 'text' args for instantiating command")

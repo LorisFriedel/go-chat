@@ -10,7 +10,7 @@ func init() {
 	registerCmd("forget", newCmdForget)
 }
 
-func newCmdForget(client *core.Client, provider IProvider) (Command, error) {
+func newCmdForget(client core.IClient, provider IProvider) (Command, error) {
 	chanName, err := provider.GetString()
 	if err != nil {
 		log.Errorln("newCmdForget: can't get 'chanName' args for instantiating command")

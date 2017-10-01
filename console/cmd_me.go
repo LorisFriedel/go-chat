@@ -8,7 +8,7 @@ func init() {
 	registerCmd("me", newCmdMe)
 }
 
-func newCmdMe(client *core.Client, provider IProvider) (Command, error) {
+func newCmdMe(client core.IClient, provider IProvider) (Command, error) {
 	return func() error {
 		return client.Me()
 	}, nil

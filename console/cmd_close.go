@@ -10,7 +10,7 @@ func init() {
 	registerCmd("close", newCmdClose)
 }
 
-func newCmdClose(client *core.Client, provider IProvider) (Command, error) {
+func newCmdClose(client core.IClient, provider IProvider) (Command, error) {
 	chanName, err := provider.GetString()
 	if err != nil {
 		log.Errorln("newCmdClose: can't get 'chanName' args for instantiating command")

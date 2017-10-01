@@ -2,15 +2,16 @@ package console
 
 import (
 	"fmt"
-	"github.com/LorisFriedel/go-chat/core"
 	"sync"
+
+	"github.com/LorisFriedel/go-chat/core"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type Command func() error
 
-type commandFactory func(client *core.Client, provider IProvider) (Command, error)
+type commandFactory func(client core.IClient, provider IProvider) (Command, error)
 
 // No need to sync the map, no concurrency there
 var commandFactories map[string]commandFactory
@@ -41,7 +42,7 @@ func registerCmd(name string, factory commandFactory) {
 	m[name] = factory
 }
 
-func NewCommand(client *core.Client, name string, provider IProvider) (Command, error) {
+func NewCommand(client core.IClient, name string, provider IProvider) (Command, error) {
 	cmdFactory, set := CmdFactory(name)
 	if !set {
 		// Factory has not been registered

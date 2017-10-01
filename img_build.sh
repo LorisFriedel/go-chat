@@ -3,6 +3,9 @@
 cd $(dirname $0)
 BIN_PATH=./bin
 
-./build.sh
+if [ ! -f $BIN_PATH/go-chat ]; then
+    ./build.sh
+fi
+
 docker build -t lorisfriedel/go-chat .
-./clean.sh
+# ./clean.sh

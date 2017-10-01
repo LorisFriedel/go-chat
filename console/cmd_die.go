@@ -8,7 +8,7 @@ func init() {
 	registerCmd("die", newCmdDie)
 }
 
-func newCmdDie(client *core.Client, provider IProvider) (Command, error) {
+func newCmdDie(client core.IClient, provider IProvider) (Command, error) {
 	return func() error {
 		return client.Die()
 	}, nil

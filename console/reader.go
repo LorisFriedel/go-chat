@@ -1,9 +1,10 @@
 package console
 
 import (
+	"strconv"
+
 	"github.com/chzyer/readline"
 	"github.com/lann/builder"
-	"strconv"
 )
 
 type rBuilder builder.Builder
@@ -99,3 +100,7 @@ const (
 	LIGHT_CYAN   = 96
 	WHITE        = 97
 )
+
+func MakeItem(prefix string, name string, pc ...readline.PrefixCompleterInterface) *readline.PrefixCompleter {
+	return readline.PcItem(prefix+name, pc...)
+}

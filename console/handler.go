@@ -2,13 +2,14 @@ package console
 
 import (
 	"fmt"
+
 	"github.com/LorisFriedel/go-chat/core"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type IHandler interface {
-	Handle(client *core.Client, input string) error
+	Handle(client core.IClient, input string) error
 }
 
 type CmdHandler struct {
@@ -19,7 +20,7 @@ func NewHandler(parser IParser) *CmdHandler {
 	return &CmdHandler{parser}
 }
 
-func (h *CmdHandler) Handle(client *core.Client, input string) error {
+func (h *CmdHandler) Handle(client core.IClient, input string) error {
 	// Parse input
 	provider, err := h.parser.Parse(input)
 	if err != nil {
