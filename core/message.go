@@ -4,25 +4,25 @@ import (
 	"time"
 )
 
-type tMsg int
+type TMsg int
 
 const (
-	HELLO           tMsg = 0
-	TEXT            tMsg = 1
-	WELCOME         tMsg = 2
-	WELCOME_BACK    tMsg = 3
-	PASSWORD_PLEASE tMsg = 4
-	PASSWORD        tMsg = 5
-	WRONG_PASSWORD  tMsg = 6
-	ERROR           tMsg = 7
-	SYS_CLIENT      tMsg = 8
-	SYS_CHANNEL     tMsg = 9
+	HELLO           TMsg = 0
+	TEXT            TMsg = 1
+	WELCOME         TMsg = 2
+	WELCOME_BACK    TMsg = 3
+	PASSWORD_PLEASE TMsg = 4
+	PASSWORD        TMsg = 5
+	WRONG_PASSWORD  TMsg = 6
+	ERROR           TMsg = 7
+	SYS_CLIENT      TMsg = 8
+	SYS_CHANNEL     TMsg = 9
 )
 
 type Message struct {
 	// Must be public for marshalling
 	Text      string
-	Type      tMsg
+	Type      TMsg
 	Sender    Identity
 	Timestamp time.Time
 }
@@ -63,7 +63,7 @@ func NewMsgPassword(sender Identity, password string) *Message {
 	}
 }
 
-func NewMsg(sender Identity, t tMsg) *Message {
+func NewMsg(sender Identity, t TMsg) *Message {
 	return &Message{
 		Type:      t,
 		Sender:    sender,

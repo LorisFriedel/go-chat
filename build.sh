@@ -17,7 +17,7 @@ if [ ! $? -eq 0 ]; then
 else
     echo "Build with Docker"
     #godep save
-    sudo docker run --rm -it -v "$GOPATH":/gopath -v "$(pwd)":/app -e "GOPATH=/gopath" -w /app golang:1.8.1 sh -c 'CGO_ENABLED=0 go build -a --installsuffix cgo --ldflags="-s" -o bin/go-chat'
+    sudo docker run --rm -it -v "$GOPATH":/gopath -v "$(pwd)":/app -e "GOPATH=/gopath" -w /app golang:1.9.0 sh -c 'CGO_ENABLED=0 go build -a --installsuffix cgo --ldflags="-s" -o bin/go-chat'
 fi
 
 

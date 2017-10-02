@@ -14,59 +14,49 @@ type IRegistry interface {
 }
 
 type Registry struct {
-	clients map[Identity]*Pipe
-	mu      sync.RWMutex
+	clients *sync.Map
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		clients: make(map[Identity]*Pipe, 0),
+		clients: &sync.Map{},
 	}
 }
 
 func (r *Registry) Push(id Identity, pipe *Pipe) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.clients[id] = pipe
+	r.clients.Store(id, pipe)
 }
 
 func (r *Registry) Get(id Identity) (*Pipe, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 
-	if _, set := r.clients[id]; !set {
+	p, ok := r.clients.Load(id)
+	if !ok {
 		return nil, fmt.Errorf("client not known: %v", id)
 	}
 
-	return r.clients[id], nil
+	return p.(*Pipe), nil
 }
 
 func (r *Registry) Pop(id Identity) (*Pipe, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, set := r.clients[id]; !set {
+	p, ok := r.clients.Load(id)
+	if !ok {
 		return nil, fmt.Errorf("client not known: %v", id)
 	}
 
-	pipe := r.clients[id]
-	delete(r.clients, id)
-	return pipe, nil
+	r.clients.Delete(id)
+	return p.(*Pipe), nil
 }
 
 func (r *Registry) Exists(id Identity) bool {
-	_, set := r.clients[id]
-	return set
+	_, ok := r.clients.Load(id)
+	return ok
 }
 
 func (r *Registry) Foreach(callback func(Identity, *Pipe)) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for k, v := range r.clients {
-		callback(k, v)
-	}
+	r.clients.Range(func(key, value interface{}) bool {
+		callback(key.(Identity), value.(*Pipe))
+		return true
+	})
 }
 
 // TODO Add(Identity, Pipe) bool OR error ?

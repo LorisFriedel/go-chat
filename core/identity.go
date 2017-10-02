@@ -25,6 +25,13 @@ func NewIdentity(name string) *Identity {
 	}
 }
 
+func NewIdentityFromConn(name string, conn net.Conn) *Identity {
+	return &Identity{
+		Name: name,
+		Hash: genIdHashFromConn(conn),
+	}
+}
+
 func genIdHash() (id string) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -45,6 +52,20 @@ func genIdHash() (id string) {
 		hasher.Write(buffer.Bytes())
 		id = base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 	}
+	return
+}
+
+func genIdHashFromConn(conn net.Conn) (id string) {
+	var buffer bytes.Buffer
+
+	h := conn.LocalAddr()
+	n := conn.RemoteAddr()
+	buffer.WriteString(fmt.Sprintf("%s%s_", n, h))
+
+	buffer.WriteString(randToken(32))
+	hasher := sha1.New()
+	hasher.Write(buffer.Bytes())
+	id = base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 	return
 }
 

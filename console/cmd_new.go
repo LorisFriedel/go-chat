@@ -30,20 +30,21 @@ func newCmdNew(client core.IClient, provider IProvider) (Command, error) {
 	}
 
 	var password string
+	var timeout int
+
 	if provider.HasMore() {
 		password, err = provider.GetString()
 		if err != nil {
 			log.Errorln("newCmdNew: can't get 'password' args for instantiating command")
 			return nil, err
 		}
-	}
 
-	var timeout int
-	if provider.HasMore() {
-		timeout, err = provider.GetInt()
-		if err != nil {
-			log.Errorln("newCmdNew: can't get 'timeout' args for instantiating command")
-			return nil, err
+		if provider.HasMore() {
+			timeout, err = provider.GetInt()
+			if err != nil {
+				log.Errorln("newCmdNew: can't get 'timeout' args for instantiating command")
+				return nil, err
+			}
 		}
 	}
 

@@ -7,8 +7,14 @@ import (
 	"net"
 	"sync"
 
+	"bufio"
+
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 )
+
+type Interceptor func(p *Pipe, msg *Message)
 
 type IPipe interface {
 	Read() (Message, error)
@@ -17,11 +23,15 @@ type IPipe interface {
 }
 
 type Pipe struct {
-	conn    net.Conn
-	open    bool
-	wg      sync.WaitGroup
-	decoder *json.Decoder
-	encoder *json.Encoder
+	conn     net.Conn
+	open     bool
+	wg       sync.WaitGroup
+	decoder  *json.Decoder
+	encoder  *json.Encoder
+	muR      sync.Mutex
+	muW      sync.Mutex
+	raw      bool
+	wIntrcpt Interceptor
 }
 
 var ErrPipeClosed error = errors.New("pipe is closed")
@@ -32,25 +42,55 @@ func NewPipe(conn net.Conn) *Pipe {
 		open:    true,
 		decoder: json.NewDecoder(conn),
 		encoder: json.NewEncoder(conn),
+		muR:     sync.Mutex{},
+		muW:     sync.Mutex{},
+		raw:     false,
 	}
 
 	return pipe
 }
 
 func (p *Pipe) Read() (msg Message, err error) {
-	err = p.decoder.Decode(&msg)
-	if err == io.EOF {
-		p.Close()
-		err = ErrPipeClosed
+	p.muR.Lock()
+	defer p.muR.Unlock()
+
+	if p.raw {
+		var msgStr string
+		msgStr, err = bufio.NewReader(p.conn).ReadString('\n')
+		msg = *NewMsgText(Identity{}, msgStr)
+	} else {
+		err = p.decoder.Decode(&msg)
+		if err == io.EOF {
+			p.Close()
+			err = ErrPipeClosed
+		}
 	}
+
+	if err != nil {
+		log.Errorf("Pipe.Read: %v <-- %v: message decoding error: %v", p.conn.LocalAddr(), p.conn.RemoteAddr(), err)
+	}
+
 	return
 }
 
 func (p *Pipe) Write(msg Message) (err error) {
-	err = p.encoder.Encode(msg)
-	if err != nil {
-		log.Errorf("Pipe.write: message encoding error: %v\n", err)
+	p.muW.Lock()
+	defer p.muW.Unlock()
+
+	if p.wIntrcpt != nil {
+		p.wIntrcpt(p, &msg)
 	}
+
+	if p.raw {
+		fmt.Fprintln(p.conn, msg.Text)
+	} else {
+		err = p.encoder.Encode(msg)
+	}
+
+	if err != nil {
+		log.Errorf("Pipe.Write: %v --> %v: message encoding error: %v", p.conn.LocalAddr(), p.conn.RemoteAddr(), err)
+	}
+
 	return
 }
 

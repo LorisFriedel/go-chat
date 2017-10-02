@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 
+	"bufio"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,7 +18,7 @@ var (
 	ErrUnknown       = errors.New("unknown error")
 )
 
-type MsgListener func(Message)
+type MsgListener func(*Message)
 
 type IClient interface {
 	Identity() Identity
@@ -76,15 +78,15 @@ func (c *Client) listen() {
 	for msg, err := p.Read(); p.IsOpen(); msg, err = p.Read() {
 		// Synchronisation here, a client can't receive more than one message at once and handle them non-concurrently84
 		if err != nil {
-			log.Errorf("Client.listen: error while reading message from channel (%v)\n", err)
+			log.Errorf("Client.listen: error while reading message from channel (%v)", err)
 			continue
 		}
-		c.notify(msg)
+		c.notify(&msg)
 	}
-	c.notify(*NewMsgSysClient(c.identity, fmt.Sprintf("Disconnected from channel %v", c.currChan)))
+	c.notify(NewMsgSysClient(c.identity, fmt.Sprintf("Disconnected from channel %v", c.currChan)))
 }
 
-func (c *Client) notify(msg Message) {
+func (c *Client) notify(msg *Message) {
 	for _, listener := range c.listeners {
 		listener(msg)
 	}
@@ -93,14 +95,14 @@ func (c *Client) notify(msg Message) {
 func (c *Client) CreateConnectChan(name, address string, port int, password string, timeout int) error {
 	err := c.CreateChan(name, address, port, password, timeout)
 	if err != nil {
-		log.Errorf("Client.CreateConnectChan: channel created but won't open (%v,%v,%v)\n", name, address, port)
+		log.Errorf("Client.CreateConnectChan: channel created but won't open (%v,%v,%v)", name, address, port)
 		return err
 	}
 
 	if c.identity.Name != "" {
 		err = c.Connect(name, address, port, password)
 		if err != nil {
-			log.Errorf("Client.CreateConnectChan: client created a channel but can't connect to it (%v)\n", err)
+			log.Errorf("Client.CreateConnectChan: client created a channel but can't connect to it (%v)", err)
 			return err
 		}
 		log.Infoln("Client.CreateConnectChan: successfully created channel, client is now connected to it")
@@ -122,13 +124,14 @@ func (c *Client) CreateChan(name, address string, port int, password string, tim
 
 	err := channel.Open()
 	if err != nil {
-		log.Errorf("Client.CreateChan: channel created but won't open (%v)\n", channel)
+		log.Errorf("Client.CreateChan: channel created but won't open (%v)", channel)
 		return err
 	}
 
 	c.ownChans[name] = channel
 
 	log.Infoln("Client.CreateChan: successfully created channel")
+	log.Infoln("Client.CreateChan: specifications: ", channel)
 	return nil
 }
 
@@ -141,7 +144,7 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 	// Connect to server address
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", address, port))
 	if err != nil {
-		log.Errorf("Client.Connect: connection failure on (%s:%d)\n", address, port)
+		log.Errorf("Client.Connect: connection failure on (%s:%d)", address, port)
 		return err
 	}
 
@@ -149,16 +152,18 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 	c.currPipe = NewPipe(conn)
 
 	if _, set := c.knownChans[name]; set {
-		log.Infof("Client.Connect: replacing channel %s in known channels\n", name)
+		log.Infof("Client.Connect: replacing channel %s in known channels", name)
 	} else {
-		log.Infof("Client.Connect: adding channel %s to known channels\n", name)
+		log.Infof("Client.Connect: adding channel %s to known channels", name)
 	}
 
 	kChan := newKnownChan(name, address, port, password)
 	c.knownChans[name] = kChan
 	c.currChan = kChan
 
-	c.send(*NewMsg(c.identity, HELLO))
+	bufio.NewReader(conn).ReadString('\n')
+
+	c.send(NewMsg(c.identity, HELLO))
 	msg, err := c.currPipe.Read()
 	if err != nil {
 		return err
@@ -189,7 +194,7 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 	}
 
 	go c.listen()
-	c.notify(*NewMsgSysClient(c.identity, fmt.Sprintf("Now connected to %v", kChan)))
+	c.notify(NewMsgSysClient(c.identity, fmt.Sprintf("Now connected to %v", kChan)))
 
 	return nil
 }
@@ -197,7 +202,7 @@ func (c *Client) Connect(name, address string, port int, password string) error 
 func (c *Client) ConnectKnown(name string) error {
 	ch, set := c.knownChans[name]
 	if !set {
-		log.Errorf("Client.ConnectKnown: client tried to connect to an unexisting known channel (%v)\n", name)
+		log.Errorf("Client.ConnectKnown: client tried to connect to an unexisting known channel (%v)", name)
 		return fmt.Errorf("unknown channel: %s", name)
 	}
 
@@ -256,7 +261,7 @@ func (c *Client) Bye() error {
 
 	log.Infoln("Client.Bye: disconnecting from current channel")
 	// We don't tell the channel we are leaving, he will notice himself
-	c.notify(*NewMsgSysClient(c.identity, fmt.Sprintf("Goodbye %v", c.currChan))) // TODO useless (or proper bye notification) ?
+	c.notify(NewMsgSysClient(c.identity, fmt.Sprintf("Goodbye %v", c.currChan))) // TODO useless (or proper bye notification) ?
 
 	return c.currPipe.Close()
 }
@@ -270,7 +275,7 @@ func (c *Client) Die() error {
 func (c *Client) Forget(name string) error {
 	_, set := c.knownChans[name]
 	if !set {
-		log.Errorf("Client.ConnectKnown: client tried to forget unknown channel (%v)\n", name)
+		log.Errorf("Client.ConnectKnown: client tried to forget unknown channel (%v)", name)
 		return fmt.Errorf("unknown channel: %s", name)
 	}
 
@@ -286,7 +291,7 @@ func (c *Client) Me() error {
 	} else {
 		text = fmt.Sprint("Not connected to any channel :(")
 	}
-	c.notify(*NewMsgSysClient(c.identity, text))
+	c.notify(NewMsgSysClient(c.identity, text))
 	return nil
 }
 
@@ -296,23 +301,23 @@ func (c *Client) List() error {
 	for _, ch := range c.knownChans {
 		buffer.WriteString(fmt.Sprintln(ch))
 	}
-	c.notify(*NewMsgText(c.identity, buffer.String()))
+	c.notify(NewMsgText(c.identity, buffer.String()))
 	return nil
 }
 
 func (c *Client) SendMessage(text string) error {
 	log.Infoln("Client.SendMessage: sending message")
 	fmt.Printf("\033[1A\033[K")
-	return c.send(*NewMsgText(c.identity, text))
+	return c.send(NewMsgText(c.identity, text))
 }
 
-func (c *Client) send(msg Message) error {
+func (c *Client) send(msg *Message) error {
 	if c.currPipe == nil || !c.currPipe.IsOpen() {
 		log.Errorln("Client.SendMessage: client is not connected to any channel")
 		return errors.New("client is not connected to any channel, can't send message")
 	}
 
-	return c.currPipe.Write(msg)
+	return c.currPipe.Write(*msg)
 }
 
 func (c *Client) String() string {

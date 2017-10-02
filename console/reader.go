@@ -1,8 +1,7 @@
 package console
 
 import (
-	"strconv"
-
+	"github.com/LorisFriedel/go-chat/format"
 	"github.com/chzyer/readline"
 	"github.com/lann/builder"
 )
@@ -42,7 +41,7 @@ func (b rBuilder) Build() (*readline.Instance, error) {
 func newReader(rb rBuilder) (*readline.Instance, error) {
 	var (
 		prefix            string                 = "> "
-		prefixColor       int                    = WHITE
+		prefixColor       int                    = format.WHITE
 		historyFile       string                 = "/tmp/go-reader.tmp"
 		completer         readline.AutoCompleter = nil
 		interruptCommand  string                 = "^C"
@@ -74,7 +73,7 @@ func newReader(rb rBuilder) (*readline.Instance, error) {
 	}
 
 	return readline.NewEx(&readline.Config{
-		Prompt:            MakePromptPrefix(prefix, prefixColor),
+		Prompt:            format.MakePromptPrefix(prefix, prefixColor),
 		HistoryFile:       historyFile,
 		AutoComplete:      completer,
 		InterruptPrompt:   interruptCommand,
@@ -82,24 +81,6 @@ func newReader(rb rBuilder) (*readline.Instance, error) {
 		HistorySearchFold: historySearchFold,
 	})
 }
-
-func MakePromptPrefix(prefix string, prefixColor int) string {
-	return "\033[" + strconv.Itoa(prefixColor) + "m" + prefix + "\033[0m"
-}
-
-const (
-	BLACK        = 30
-	RED          = 31
-	GREEN        = 32
-	BLUE         = 34
-	LIGHT_GRAY   = 37
-	LIGHT_RED    = 91
-	LIGHT_GREEN  = 92
-	LIGHT_YELLOW = 93
-	LIGHT_BLUE   = 94
-	LIGHT_CYAN   = 96
-	WHITE        = 97
-)
 
 func MakeItem(prefix string, name string, pc ...readline.PrefixCompleterInterface) *readline.PrefixCompleter {
 	return readline.PcItem(prefix+name, pc...)

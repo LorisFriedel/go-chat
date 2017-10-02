@@ -16,6 +16,7 @@ import (
 
 	"github.com/LorisFriedel/go-chat/console"
 	"github.com/LorisFriedel/go-chat/core"
+	"github.com/LorisFriedel/go-chat/format"
 	rl "github.com/chzyer/readline"
 	log "github.com/sirupsen/logrus"
 )
@@ -92,7 +93,7 @@ func initServerMode(args *Arguments) {
 	)
 
 	rd, err := console.ReaderBuilder.
-		Prefix("# ").PrefixColor(console.LIGHT_RED).
+		Prefix("# ").PrefixColor(format.LIGHT_RED).
 		HistoryFile("/tmp/go-chat").HistorySearchFold(true).
 		InterruptCommand("^C").Completer(completer).Build()
 
@@ -137,7 +138,7 @@ func initStandardMode(args *Arguments) {
 	)
 
 	rd, err := console.ReaderBuilder.
-		Prefix("> ").PrefixColor(console.LIGHT_CYAN).
+		Prefix("> ").PrefixColor(format.LIGHT_CYAN).
 		HistoryFile("/tmp/go-chat").HistorySearchFold(true).
 		InterruptCommand("^C").Completer(completer).Build()
 
@@ -146,26 +147,13 @@ func initStandardMode(args *Arguments) {
 	}
 	defer rd.Close()
 
-	client.AddListener(func(msg core.Message) {
-		color := console.LIGHT_BLUE
+	client.AddListener(func(msg *core.Message) {
+		color := colorMap[msg.Type]
 		if msg.Sender == client.Identity() {
-			color = console.LIGHT_GREEN
-		} else if msg.Type == core.SYS_CHANNEL {
-			color = console.LIGHT_RED
-		} else if msg.Type == core.SYS_CLIENT {
-			color = console.RED
+			color = format.LIGHT_GREEN
 		}
 
-		name := console.MakePromptPrefix(msg.Sender.Name, color)
-		time := console.MakePromptPrefix(msg.Timestamp.Format("15:04:05"), console.LIGHT_YELLOW)
-		switch msg.Type {
-		case core.TEXT:
-			fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
-		case core.SYS_CHANNEL:
-			fmt.Printf("(%s) %s: %s\n", time, name, msg.Text)
-		case core.SYS_CLIENT:
-			fmt.Printf("(%s) %s\n", time, msg.Text)
-		}
+		fmt.Println(format.Msg(msg.Sender.Name, msg.Text, msg.Timestamp, color))
 		rd.Refresh()
 	})
 
@@ -180,6 +168,12 @@ func initStandardMode(args *Arguments) {
 	// END Post boot actions -------------------------------------------------
 
 	cliLoop(client, rd, handler)
+}
+
+var colorMap map[core.TMsg]int = map[core.TMsg]int{
+	core.TEXT:        format.LIGHT_BLUE,
+	core.SYS_CHANNEL: format.LIGHT_RED,
+	core.SYS_CLIENT:  format.RED,
 }
 
 func getUserName() string {
