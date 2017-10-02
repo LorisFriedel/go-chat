@@ -227,7 +227,7 @@ func (c *Channel) Join(conn net.Conn) {
 		// Broadcast message
 		c.msg <- &msg
 
-		if c.timeout > 0 {
+		if c.timeout.Seconds() > 0 {
 			p.conn.SetReadDeadline(time.Now().Add(c.timeout))
 		}
 	}
@@ -311,14 +311,13 @@ func (c *Channel) newRawClient(p *Pipe, userName string) {
 		msg.Sender = id
 
 		// Broadcast message
+		msg.Text = strings.TrimSpace(msg.Text)
 		c.msg <- &msg
 
-		if c.timeout > 0 {
+		if c.timeout.Seconds() > 0 {
 			p.conn.SetReadDeadline(time.Now().Add(c.timeout))
 		}
 	}
-
-	// TODO timeout not working
 
 	if !c.open {
 		return
