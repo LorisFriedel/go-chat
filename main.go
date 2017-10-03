@@ -278,7 +278,7 @@ func merge(argsList ...*Arguments) *Arguments {
 
 		result.newChannels = append(result.newChannels, args.newChannels...)
 
-		result.serverMode = args.serverMode
+		result.serverMode = args.serverMode || result.serverMode
 
 		if args.chanToGo != nil {
 			result.chanToGo = args.chanToGo
