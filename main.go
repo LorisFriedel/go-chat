@@ -344,8 +344,9 @@ func parseChannel(chanArgsStr string) *ChanArgs {
 }
 
 func parseBool(str string) bool {
-	if b, err := strconv.ParseBool(str); err != nil {
-		return b
+	b, err := strconv.ParseBool(str)
+	if err != nil {
+		return false
 	}
-	return false
+	return b
 }
