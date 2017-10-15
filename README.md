@@ -1,6 +1,6 @@
-# Go-chat
+# GoChat
 
-![Go chat logo](./images/go-chat-small.png)
+![GoChat logo](./images/go-chat-small.png)
 
 Another simple IRC application written in Go.
 

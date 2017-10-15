@@ -127,6 +127,8 @@ func (c *Channel) Close() (err error) {
 
 // Handle is used to handle message received from connected client
 func (c *Channel) handle(msg *Message) {
+	log.Infof("Channel.handle: handling message: (%v)", *msg)
+
 	// TODO Handle regarding message type ?
 	c.broadcast(msg)
 }
